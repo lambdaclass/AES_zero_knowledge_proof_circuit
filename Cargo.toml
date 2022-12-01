@@ -24,3 +24,4 @@ rand = "0.8.5"
 ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
 blake2 = { version = "0.9" }
 rand_chacha = { version = "0.3.1" }
+simpleworks = {git = "https://github.com/Entropy1729/simpleworks"}
