@@ -20,4 +20,7 @@ ark-serialize = { version = "^0.3.0", default-features = false }
 ark-crypto-primitives = { version = "^0.3.0", default-features = true, features = [ "r1cs" ] }
 rand = "0.8.5"
 # ark-marlin = "0.3.0"
+# ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
 ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
+blake2 = { version = "0.9" }
+rand_chacha = { version = "0.3.1" }

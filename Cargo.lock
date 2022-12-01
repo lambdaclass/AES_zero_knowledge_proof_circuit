@@ -19,7 +19,9 @@ dependencies = [
  "ark-serialize",
  "ark-snark",
  "ark-std",
+ "blake2",
  "rand",
+ "rand_chacha",
 ]
 
 [[package]]
