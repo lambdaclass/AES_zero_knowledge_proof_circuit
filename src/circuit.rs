@@ -1,8 +1,6 @@
 /// Ark deps
 use ark_crypto_primitives::encryption::constraints::AsymmetricEncryptionGadget;
-use ark_crypto_primitives::encryption::elgamal::{
-    constraints::ElGamalEncGadget, ElGamal,
-};
+use ark_crypto_primitives::encryption::elgamal::{constraints::ElGamalEncGadget, ElGamal};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ed_on_bls12_381::{
     constraints::EdwardsVar, EdwardsParameters, EdwardsProjective as JubJub, Fq,
@@ -90,6 +88,16 @@ pub fn build_encrypt_circuit(message: &[u8; 256]) -> CSRef {
         ark_relations::ns!(cs, "public_key"),
         || Ok(&public_key),
     );
-    cs.is_satisfied().unwrap();
     return cs;
+}
+
+#[cfg(test)]
+mod test{
+    use super::*;
+    #[test]
+    fn build_constraint(){
+        let msg = [1u8; 256];
+        let cs = build_encrypt_circuit(&msg);
+        assert!(cs.is_satisfied().unwrap());
+    }
 }
