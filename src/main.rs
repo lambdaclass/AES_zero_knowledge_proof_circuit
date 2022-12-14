@@ -1,5 +1,5 @@
 mod circuit;
 mod ristretto;
 mod rsa;
-fn main() {
-}
+mod xor;
+fn main() {}
