@@ -21,7 +21,7 @@ ark-crypto-primitives = { version = "^0.3.0", default-features = true, features 
 rand = "0.7"
 # ark-marlin = "0.3.0"
 # ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
-ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
+ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "impl_debug_for_vk" }
 blake2 = { version = "0.9" }
 simpleworks = {git = "https://github.com/Entropy1729/simpleworks"}
 curve25519-dalek = { version = "2.0.0", default-features = false, features = ["serde"] }
@@ -41,3 +41,5 @@ hex = "0.4.2"
 base64 = "0.13.1"
 zkp = "0.8.0"
 rsa = "0.7.2"
+rand_chacha = {version = "0.3.1"}
+anyhow = "1.0"
