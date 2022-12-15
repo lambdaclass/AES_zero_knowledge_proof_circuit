@@ -18,12 +18,14 @@ type MarlinInst = Marlin<Fq, MultiPC, FS>;
 type MarlinProof = Proof<Fq, MultiPC>;
 type IndexVK = IndexVerifierKey<Fq, MultiPC>;
 use std::{cell::RefCell, rc::Rc};
-pub fn xor_and_verify(x: u32, y: u32) -> (IndexVK, MarlinProof, u32) {
-    let mut rng = simpleworks::marlin::generate_rand();
-    let cs = ConstraintSystem::<Fq>::new_ref();
+pub fn xor_and_verify(x: u32, y: u32, cs: ConstraintSystemRef<Fq>) -> (ConstraintSystemRef<Fq>, u32) {
     let x_witness = UInt32::new_witness(ark_relations::ns!(cs, "x_witness"), || Ok(x)).unwrap();
     let y_witness = UInt32::new_witness(ark_relations::ns!(cs, "y_witness"), || Ok(y)).unwrap();
     let z = x_witness.xor(&y_witness).unwrap().value().unwrap();
+    return (cs, z);
+}
+pub fn prove(cs: ConstraintSystemRef<Fq>) -> (IndexVK, MarlinProof) {
+    let mut rng = simpleworks::marlin::generate_rand();
     let srs = simpleworks::marlin::generate_universal_srs(&mut rng).unwrap();
     let cs_clone = (*cs
         .borrow()
@@ -43,7 +45,7 @@ pub fn xor_and_verify(x: u32, y: u32) -> (IndexVK, MarlinProof, u32) {
         MarlinInst::index_from_constraint_system(&srs, cs_ref_first_clone).unwrap();
     let proof =
         MarlinInst::prove_from_constraint_system(&index_pk, cs_ref_second_clone, &mut rng).unwrap();
-    (index_vk, proof, z)
+    (index_vk, proof)
 }
 #[cfg(test)]
 mod test {
@@ -53,9 +55,11 @@ mod test {
         let mut rng = ark_std::test_rng();
         let x = 1;
         let y = 2;
-        let z = x ^ y;
-        let (index_vk, proof, xor_result) = xor_and_verify(x, y);
-        assert_eq!(xor_result, z);
+        let expected = x ^ y;
+        let cs = ConstraintSystem::<Fq>::new_ref();
+        let (cs, z)  = xor_and_verify(x, y, cs);
+        assert_eq!(expected, z);
+        let (index_vk, proof) = prove(cs);
         assert!(MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 }
