@@ -79,13 +79,47 @@ pub fn substitute_16_bytes(
     cs: ConstraintSystemRef<Fq>,
 ) -> (u128, ConstraintSystemRef<Fq>) {
     let num_witness =
-        UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || Ok(num)).unwrap();
+        UInt128::new_witness(ark_relations::ns!(cs, "substitution_box_witness"), || {
+            Ok(num)
+        })
+        .unwrap();
     let mut new_bytes = [0u8; 16];
     let bytes = num_witness.to_bytes().unwrap();
     for i in 0..16 {
         new_bytes[i] = substitute_byte(bytes[i].value().unwrap());
     }
     return (u128::from_le_bytes(new_bytes), cs);
+}
+
+pub fn shift_rows(num: u128, cs: ConstraintSystemRef<Fq>) -> (u128, ConstraintSystemRef<Fq>) {
+    let num_witness =
+        UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num)).unwrap();
+
+    // Turn the 128 into a 16 byte vec.
+    let bytes_iter = num_witness
+        .to_bytes()
+        .unwrap()
+        .into_iter()
+        .map(|byte| byte.value().unwrap())
+        .into_iter();
+
+    // Turn the 16 byte vec into 4 byte numbers
+    // as to rotate them like the AES algorithm specifies.
+    let mut new_bytes = [0u32; 4];
+    for (i, bytes) in bytes_iter.array_chunks::<4>().enumerate() {
+        new_bytes[i] = u32::from_le_bytes(bytes);
+    }
+    for i in 0..3 {
+        new_bytes.rotate_left(i);
+    }
+    // Split the 4 byte numbers into a plain array
+    // of 8 byte numbers with size 16, to then
+    // turn it into a little endian 128 bit number.
+    let mut separated_bytes = [0u8; 16];
+    for i in 0..4 {
+        separated_bytes[4 * i..][..4].copy_from_slice(&new_bytes[i].to_le_bytes());
+    }
+    return (u128::from_le_bytes(separated_bytes), cs);
 }
 mod test {
     use super::*;
@@ -98,5 +132,13 @@ mod test {
         let cs = ConstraintSystem::<Fq>::new_ref();
         let result = substitute_16_bytes(num, cs);
         assert_eq!(u128::from_le_bytes(expected), result.0);
+    }
+    #[test]
+    fn test_shift() {
+        let cs = ConstraintSystem::<Fq>::new_ref();
+        let val: [u8; 16] = [1,1,1,1, 0,1,1,1, 0,0,1,1, 0,0,0,1,];
+        let expected: [u8; 16] = [1,1,1,1, 1,1,1,0, 1,1,0,0, 1,0,0,0];
+        let (res, cs) = shift_rows(u128::from_le_bytes(val), cs);
+        assert_eq!(res.to_le_bytes(), expected);
     }
 }
