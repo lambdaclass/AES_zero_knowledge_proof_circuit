@@ -1,3 +1,3 @@
-mod aes;
-mod ops;
-mod prover;
+pub mod aes;
+pub mod ops;
+pub mod prover;
