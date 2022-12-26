@@ -3,45 +3,6 @@
 version = 3
 
 [[package]]
-name = "POC-encryption-proof"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ark-bls12-381",
- "ark-crypto-primitives",
- "ark-ec",
- "ark-ed-on-bls12-381",
- "ark-ff",
- "ark-marlin 0.3.0 (git+https://github.com/Entropy1729/marlin.git?branch=impl_debug_for_vk)",
- "ark-poly",
- "ark-poly-commit",
- "ark-r1cs-std",
- "ark-relations",
- "ark-serialize",
- "ark-snark",
- "ark-std",
- "base64",
- "blake2",
- "byteorder",
- "curve25519-dalek",
- "digest 0.9.0",
- "elgamal_ristretto",
- "fiat-crypto",
- "hex",
- "packed_simd_2",
- "rand 0.7.3",
- "rand_chacha 0.3.1",
- "rand_core 0.5.1",
- "rsa",
- "serde",
- "sha2",
- "simpleworks",
- "subtle",
- "zeroize",
- "zkp 0.8.0",
-]
-
-[[package]]
 name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -938,6 +899,45 @@ checksum = "9eca2c590a5f85da82668fa685c09ce2888b9430e83299debf1f34b65fd4a4ba"
 dependencies = [
  "der",
  "spki",
+]
+
+[[package]]
+name = "poc-encryption-proof"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ark-bls12-381",
+ "ark-crypto-primitives",
+ "ark-ec",
+ "ark-ed-on-bls12-381",
+ "ark-ff",
+ "ark-marlin 0.3.0 (git+https://github.com/Entropy1729/marlin.git?branch=impl_debug_for_vk)",
+ "ark-poly",
+ "ark-poly-commit",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-serialize",
+ "ark-snark",
+ "ark-std",
+ "base64",
+ "blake2",
+ "byteorder",
+ "curve25519-dalek",
+ "digest 0.9.0",
+ "elgamal_ristretto",
+ "fiat-crypto",
+ "hex",
+ "packed_simd_2",
+ "rand 0.7.3",
+ "rand_chacha 0.3.1",
+ "rand_core 0.5.1",
+ "rsa",
+ "serde",
+ "sha2",
+ "simpleworks",
+ "subtle",
+ "zeroize",
+ "zkp 0.8.0",
 ]
 
 [[package]]
