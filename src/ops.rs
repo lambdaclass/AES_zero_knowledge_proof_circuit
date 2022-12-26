@@ -24,22 +24,16 @@ pub fn add(x: u32, y: u32, cs: &ConstraintSystemRef<Fq>) -> u32 {
 mod test {
     use super::*;
     use crate::*;
-    use ark_std::rand::{Rng, SeedableRng};
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::rand::{Rng, SeedableRng};
 
     // Generate 2 random integers and try
     // to calculate a xor inside a Constraint System.
     #[test]
     fn test_xor_and_verify_result() -> () {
         let seed = [
-            1, 0, 52, 0,
-            0, 0, 0, 0,
-            1, 0, 10, 0,
-            22, 32, 0, 0,
-            2, 0, 55, 49,
-            0, 11, 0, 0,
-            3, 0, 0, 0,
-            0, 0, 2, 92,
+            1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
+            0, 0, 0, 2, 92,
         ];
         let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
         let x: u32 = rng.gen_range(0..=u32::MAX);
@@ -56,14 +50,8 @@ mod test {
     #[test]
     fn test_add_and_verify_result() -> () {
         let seed = [
-            1, 0, 52, 0,
-            0, 0, 0, 0,
-            1, 0, 10, 0,
-            22, 32, 0, 0,
-            2, 0, 55, 49,
-            0, 11, 0, 0,
-            3, 0, 0, 0,
-            0, 0, 2, 92,
+            1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
+            0, 0, 0, 2, 92,
         ];
         let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
         let x: u32 = rng.gen_range(0..=u32::MAX);
