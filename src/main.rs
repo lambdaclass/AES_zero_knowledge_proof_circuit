@@ -1,14 +1,27 @@
+use aes::{Aes128, cipher::{KeyInit, BlockEncrypt}};
 use anyhow::Result;
-use poc_encryption_proof::{encrypt, synthetize_keys, verify_encryption};
+use digest::generic_array::GenericArray;
+use poc_encryption_proof::{encrypt, synthesize_keys, verify_encryption};
 
 fn main() -> Result<()> {
-    let message = vec![1u8, 2u8, 3u8, 10u8, 9u8, 7u8];
-    let secret_key = vec![1u8, 1u8, 1u8, 1u8];
-    let (proving_key, verifying_key) = synthetize_keys()?;
+    let message = [1_u8; 16];
+    let secret_key = [0_u8; 16];
+    let primitive_secret_key = Aes128::new(GenericArray::from_slice(&secret_key));
+    let (proving_key, verifying_key) = synthesize_keys()?;
 
-    let (_ciphertext, proof) = encrypt(&message, &secret_key, proving_key)?;
+    let (ciphertext, proof) = encrypt(&message, &secret_key, proving_key)?;
+    let primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);
 
+    assert_eq!(primitive_ciphertext, ciphertext);
     assert!(verify_encryption(verifying_key, &proof)?);
 
     Ok(())
 }
+
+fn primitive_encrypt(message: &[u8; 16], primitive_secret_key: &Aes128) -> Vec<u8> {
+    let mut encrypted_message = Vec::new();
+    let mut block = GenericArray::clone_from_slice(message);
+    primitive_secret_key.encrypt_block(&mut block);
+    encrypted_message.extend_from_slice(block.as_slice());
+    encrypted_message
+} 
