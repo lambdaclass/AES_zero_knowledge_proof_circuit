@@ -7,7 +7,7 @@ use ark_relations::r1cs::ConstraintSystemRef;
 pub mod traits;
 
 pub fn to_matrix_gadget(
-    primitive_matrix: Vec<Vec<u8>>,
+    primitive_matrix: &[Vec<u8>],
     cs: &ConstraintSystemRef<Fq>,
 ) -> Result<Vec<Vec<UInt8<Fq>>>> {
     let mut gadget_lookup_table = Vec::new();
