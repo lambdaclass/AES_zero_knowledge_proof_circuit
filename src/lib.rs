@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use collect_slice::CollectSlice;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -7,6 +8,7 @@ use simpleworks::{
     marlin::{MarlinProof, ProvingKey, VerifyingKey},
 };
 use std::cell::RefCell;
+use std::iter::zip;
 use std::rc::Rc;
 
 pub fn encrypt(
@@ -74,4 +76,13 @@ fn encrypt_and_generate_constraints(
     ciphertext
 }
 
-// TODO: Should we add decryption?
+/// Performs the xor bit by bit between the input_text and the key
+fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+    let mut ret = [0_u8; 16];
+
+    let _ = zip(input_text, key)
+        .map(|(cell_i, key_i)| cell_i ^ key_i)
+        .collect_slice(&mut ret[..]);
+
+    ret
+}

@@ -427,6 +427,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "collect_slice"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcf7ebe98d2f8eba5ecf08e7ffa74384eea74b35d2fdee7aa417cf3a9cbe658"
+
+[[package]]
 name = "const-oid"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -970,6 +976,7 @@ dependencies = [
  "base64",
  "blake2",
  "byteorder",
+ "collect_slice",
  "curve25519-dalek",
  "digest 0.9.0",
  "elgamal_ristretto",
