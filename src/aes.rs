@@ -1,10 +1,12 @@
+use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
+use crate::helpers::ToAnyhow;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
-const aes_lookup_table: [[u8; 16]; 16] = [
+const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
     // 0x0,  0x1,  0x2,  0x3,  0x4,  0x5,  0x6,  0x7,  0x8,  0x9,  0xA,  0xB,  0xC,  0xD,  0xE,  0xF,
     [
         0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB,
@@ -71,24 +73,25 @@ const aes_lookup_table: [[u8; 16]; 16] = [
         0x16,
     ], // 0xF
 ];
-pub fn substitute_byte(byte: u8) -> u8 {
-    return (aes_lookup_table[(byte >> 4) as usize][(byte & 0x0F) as usize]);
+pub fn substitute_byte(byte: u8) -> Result<u8> {
+    Ok(*AES_LOOKUP_TABLE
+        .get((byte >> 4_i32) as usize)
+        .to_anyhow("Error getting value of the lookup table")?
+        .get((byte & 0x0F_u8) as usize)
+        .to_anyhow("Error getting value of the lookup table")?)
 }
 pub fn substitute_16_bytes(
     num: u128,
     cs: ConstraintSystemRef<Fq>,
-) -> (u128, ConstraintSystemRef<Fq>) {
+) -> Result<(u128, ConstraintSystemRef<Fq>)> {
     let num_witness =
-        UInt128::new_witness(ark_relations::ns!(cs, "substitution_box_witness"), || {
-            Ok(num)
-        })
-        .unwrap();
-    let mut new_bytes = [0u8; 16];
-    let bytes = num_witness.to_bytes().unwrap();
-    for i in 0..16 {
-        new_bytes[i] = substitute_byte(bytes[i].value().unwrap());
+        UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || Ok(num))?;
+    let mut new_bytes = [0_u8; 16];
+
+    for (new_byte, byte) in new_bytes.iter_mut().zip(num_witness.to_bytes()?) {
+        *new_byte = substitute_byte(byte.value()?)?;
     }
-    return (u128::from_le_bytes(new_bytes), cs);
+    Ok((u128::from_le_bytes(new_bytes), cs))
 }
 
 pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
@@ -147,10 +150,11 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
     }
     u128::from_le_bytes(flattened_bytes)
 }
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::aes::{substitute_16_bytes, substitute_byte};
+    use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::rand::SeedableRng;
     fn seed() -> [u8; 32] {
@@ -162,13 +166,11 @@ mod test {
 
     #[test]
     fn test_substitution() {
-        let num = 0x1000 as u128;
+        let num = 0x1000_u128;
         let mut expected = num.to_le_bytes();
-        for i in 0..16 {
-            expected[i] = substitute_byte(expected[i]);
-        }
+        expected.iter_mut().for_each(|e| *e = substitute_byte(*e).unwrap());
         let cs = ConstraintSystem::<Fq>::new_ref();
-        let result = substitute_16_bytes(num, cs);
+        let result = substitute_16_bytes(num, cs).unwrap();
         assert_eq!(u128::from_le_bytes(expected), result.0);
     }
     #[test]
@@ -186,8 +188,9 @@ mod test {
         let res = shift_rows(u128::from_le_bytes(value_to_shift), &cs);
         assert_eq!(res, u128::from_le_bytes(expected));
         assert!(cs.is_satisfied().unwrap());
-        let (index_vk, proof) = crate::prover::prove(cs);
-        let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
-        assert!(crate::prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
+        // TODO: Uncomment this using simpleworks
+        // let (index_vk, proof) = crate::prover::prove(cs);
+        // let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
+        // assert!(crate::prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 }

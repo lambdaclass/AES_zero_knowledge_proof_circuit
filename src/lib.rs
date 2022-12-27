@@ -39,16 +39,17 @@
 )]
 
 pub mod aes;
+pub mod helpers;
 pub mod ops;
 
 use anyhow::{anyhow, Result};
-use collect_slice::CollectSlice;
 use ark_ff::BigInteger256;
 use ark_r1cs_std::prelude::Boolean;
 use ark_relations::{
     lc,
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
+use collect_slice::CollectSlice;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -60,15 +61,14 @@ use std::iter::zip;
 use std::rc::Rc;
 
 pub fn encrypt(
-    message: Vec<u8>,
-    secret_key: Vec<u8>,
+    message: &[u8],
+    secret_key: &[u8],
     proving_key: ProvingKey,
 ) -> Result<(Vec<u8>, MarlinProof)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let ciphertext =
-        encrypt_and_generate_constraints(constraint_system.clone(), message, secret_key)?;
+    let ciphertext = encrypt_and_generate_constraints(&constraint_system, message, secret_key)?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one
@@ -103,18 +103,18 @@ pub fn synthetize_keys() -> Result<(ProvingKey, VerifyingKey)> {
     let default_secret_key_input = vec![];
 
     let _ciphertext = encrypt_and_generate_constraints(
-        constraint_system.clone(),
-        default_message_input,
-        default_secret_key_input,
+        &constraint_system,
+        &default_message_input,
+        &default_secret_key_input,
     );
 
     simpleworks::marlin::generate_proving_and_verifying_keys(&universal_srs, constraint_system)
 }
 
 fn encrypt_and_generate_constraints(
-    cs: ConstraintSystemRef<ConstraintF>,
-    _message: Vec<u8>,
-    _secret_key: Vec<u8>,
+    cs: &ConstraintSystemRef<ConstraintF>,
+    _message: &[u8],
+    _secret_key: &[u8],
 ) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
@@ -133,7 +133,7 @@ fn encrypt_and_generate_constraints(
     Ok(ciphertext)
 }
 
-/// Performs the xor bit by bit between the input_text and the key
+/// Performs the xor bit by bit between the `input_text` and the key
 fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let mut ret = [0_u8; 16];
 
