@@ -126,13 +126,13 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ark_std::rand::SeedableRng;
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::rand::SeedableRng;
     fn seed() -> [u8; 32] {
-        return [
+        [
             1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
             0, 0, 0, 2, 92,
-        ];
+        ]
     }
 
     #[test]
