@@ -41,14 +41,15 @@
 pub mod aes;
 pub mod ops;
 
+use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
-use collect_slice::CollectSlice;
 use ark_ff::BigInteger256;
 use ark_r1cs_std::prelude::Boolean;
 use ark_relations::{
     lc,
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
+use collect_slice::CollectSlice;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -58,7 +59,6 @@ use simpleworks::{
 use std::cell::RefCell;
 use std::iter::zip;
 use std::rc::Rc;
-use crate::aes::substitute_byte;
 
 pub fn encrypt(
     message: Vec<u8>,
@@ -156,13 +156,106 @@ fn aes_sub_bytes(input_text: &[u8; 16]) -> [u8; 16] {
 }
 
 fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
-    let mut ret = [0_u8; 16];
-    let mul_matrix = [
-        0x02_u8, 0x01, 0x01, 0x03, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x01,
-        0x03, 0x02, // values repeated
-        0x02, 0x01, 0x01, 0x03, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03,
-        0x02,
-    ];
+    let mul_matrix = [2_u8, 3, 1, 1, 1, 2, 3, 1, 1, 1, 2, 3, 3, 1, 1, 2];
 
-    ret
+    // first row
+    let cell_0_0 = (mul_matrix[0] & input[0])
+        ^ (mul_matrix[1] & input[4])
+        ^ (mul_matrix[2] & input[8])
+        ^ (mul_matrix[3] & input[12]);
+
+    let cell_0_1 = (mul_matrix[0] & input[1])
+        ^ (mul_matrix[1] & input[5])
+        ^ (mul_matrix[2] & input[9])
+        ^ (mul_matrix[3] & input[13]);
+
+    let cell_0_2 = (mul_matrix[0] & input[2])
+        ^ (mul_matrix[1] & input[6])
+        ^ (mul_matrix[2] & input[10])
+        ^ (mul_matrix[3] & input[14]);
+
+    let cell_0_3 = (mul_matrix[0] & input[3])
+        ^ (mul_matrix[1] & input[7])
+        ^ (mul_matrix[2] & input[11])
+        ^ (mul_matrix[3] & input[15]);
+
+    // second row
+    let cell_1_0 = (mul_matrix[4] & input[0])
+        ^ (mul_matrix[5] & input[4])
+        ^ (mul_matrix[6] & input[8])
+        ^ (mul_matrix[7] & input[12]);
+
+    let cell_1_1 = (mul_matrix[4] & input[1])
+        ^ (mul_matrix[5] & input[5])
+        ^ (mul_matrix[6] & input[9])
+        ^ (mul_matrix[7] & input[13]);
+
+    let cell_1_2 = (mul_matrix[4] & input[2])
+        ^ (mul_matrix[5] & input[6])
+        ^ (mul_matrix[6] & input[10])
+        ^ (mul_matrix[7] & input[14]);
+
+    let cell_1_3 = (mul_matrix[4] & input[3])
+        ^ (mul_matrix[5] & input[7])
+        ^ (mul_matrix[6] & input[11])
+        ^ (mul_matrix[7] & input[15]);
+
+    // third row
+    let cell_2_0 = (mul_matrix[8] & input[0])
+        ^ (mul_matrix[9] & input[4])
+        ^ (mul_matrix[10] & input[8])
+        ^ (mul_matrix[11] & input[12]);
+
+    let cell_2_1 = (mul_matrix[8] & input[1])
+        ^ (mul_matrix[9] & input[5])
+        ^ (mul_matrix[10] & input[9])
+        ^ (mul_matrix[11] & input[13]);
+
+    let cell_2_2 = (mul_matrix[8] & input[2])
+        ^ (mul_matrix[9] & input[6])
+        ^ (mul_matrix[10] & input[10])
+        ^ (mul_matrix[11] & input[14]);
+
+    let cell_2_3 = (mul_matrix[8] & input[3])
+        ^ (mul_matrix[9] & input[7])
+        ^ (mul_matrix[10] & input[11])
+        ^ (mul_matrix[11] & input[15]);
+
+    // forth row
+    let cell_3_0 = (mul_matrix[12] & input[0])
+        ^ (mul_matrix[13] & input[4])
+        ^ (mul_matrix[14] & input[8])
+        ^ (mul_matrix[15] & input[12]);
+
+    let cell_3_1 = (mul_matrix[12] & input[1])
+        ^ (mul_matrix[13] & input[5])
+        ^ (mul_matrix[14] & input[9])
+        ^ (mul_matrix[15] & input[13]);
+
+    let cell_3_2 = (mul_matrix[12] & input[2])
+        ^ (mul_matrix[13] & input[6])
+        ^ (mul_matrix[14] & input[10])
+        ^ (mul_matrix[15] & input[14]);
+
+    let cell_3_3 = (mul_matrix[12] & input[3])
+        ^ (mul_matrix[13] & input[7])
+        ^ (mul_matrix[14] & input[11])
+        ^ (mul_matrix[15] & input[15]);
+
+    [
+        cell_0_0, cell_0_1, cell_0_2, cell_0_3, cell_1_0, cell_1_1, cell_1_2, cell_1_3, cell_2_0,
+        cell_2_1, cell_2_2, cell_2_3, cell_3_0, cell_3_1, cell_3_2, cell_3_3,
+    ]
+}
+
+mod test {
+    #[test]
+    fn test_chunk() {
+        let slice = ['l', 'o', 'r', 'e', 'm'];
+        let iter = slice.chunks(2);
+
+        for v in iter {
+            println!("{:?}", v);
+        }
+    }
 }
