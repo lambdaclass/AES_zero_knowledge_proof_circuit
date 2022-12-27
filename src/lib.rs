@@ -1,6 +1,11 @@
 use anyhow::{anyhow, Result};
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use collect_slice::CollectSlice;
+use ark_ff::BigInteger256;
+use ark_r1cs_std::prelude::Boolean;
+use ark_relations::{
+    lc,
+    r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
+};
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -19,7 +24,8 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let ciphertext = encrypt_and_generate_constraints(&constraint_system, message, secret_key);
+    let ciphertext =
+        encrypt_and_generate_constraints(constraint_system.clone(), message, secret_key)?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one
@@ -54,7 +60,7 @@ pub fn synthetize_keys() -> Result<(ProvingKey, VerifyingKey)> {
     let default_secret_key_input = vec![];
 
     let _ciphertext = encrypt_and_generate_constraints(
-        &constraint_system,
+        constraint_system.clone(),
         default_message_input,
         default_secret_key_input,
     );
@@ -63,17 +69,25 @@ pub fn synthetize_keys() -> Result<(ProvingKey, VerifyingKey)> {
 }
 
 fn encrypt_and_generate_constraints(
-    _cs: &ConstraintSystemRef<ConstraintF>,
+    cs: ConstraintSystemRef<ConstraintF>,
     _message: Vec<u8>,
     _secret_key: Vec<u8>,
-) -> Vec<u8> {
+) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
-        `constraint_system`.
+        `cs`.
     */
 
+    let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
+
+    let b = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
+
+    let difference: LinearCombination<ConstraintF> = lc!() + a - b;
+    let true_variable = &Boolean::<ConstraintF>::TRUE;
+    cs.enforce_constraint(difference, true_variable.lc(), lc!())?;
+
     let ciphertext = vec![];
-    ciphertext
+    Ok(ciphertext)
 }
 
 /// Performs the xor bit by bit between the input_text and the key
