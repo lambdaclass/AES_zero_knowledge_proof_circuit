@@ -1,6 +1,6 @@
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
@@ -143,11 +143,12 @@ mod test {
             0xd4, 0xe0, 0xb8, 0x1e, 0xbf, 0xb4, 0x41, 0x27, 0x5d, 0x52, 0x11, 0x98, 0x30, 0xae,
             0xf1, 0xe5,
         ];
-        let val: [u8; 16] = [
+        let value_to_shift: [u8; 16] = [
             0xd4, 0xe0, 0xb8, 0x1e, 0x27, 0xbf, 0xb4, 0x41, 0x11, 0x98, 0x5d, 0x52, 0xae, 0xf1,
             0xe5, 0x30,
         ];
-        let (res, cs) = shift_rows(u128::from_le_bytes(val), cs);
+        let (res, cs) = shift_rows(u128::from_le_bytes(value_to_shift), cs);
         assert_eq!(res.to_le_bytes(), expected);
+        assert!(cs.is_satisfied().unwrap());
     }
 }
