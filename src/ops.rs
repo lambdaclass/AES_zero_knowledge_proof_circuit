@@ -1,10 +1,9 @@
+use crate::helpers::traits::ToAnyhow;
 use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::prelude::*;
 use ark_r1cs_std::uint32::UInt32;
 use ark_relations::r1cs::ConstraintSystemRef;
-
-use crate::helpers::ToAnyhow;
 
 pub fn xor(x: u32, y: u32, cs: &ConstraintSystemRef<Fq>) -> Result<u32> {
     let x_witness = UInt32::new_witness(ark_relations::ns!(cs, "x_xor_witness"), || Ok(x))
