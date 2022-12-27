@@ -101,11 +101,11 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
     // Turn the 128 bit witness into
     // its actual value, in the form of a
     // vector of little endian bytes.
-    let witness_as_bytes: Vec<u8> = num_witness
+    let witness_as_bytes = num_witness
         .to_bytes()?
         .into_iter()
         .map(|byte| Ok(byte.value()?))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<u8>>>()?;
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -155,13 +155,15 @@ mod test {
     use crate::aes::{substitute_16_bytes, substitute_byte};
     use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_std::rand::SeedableRng;
-    fn seed() -> [u8; 32] {
-        [
-            1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
-            0, 0, 0, 2, 92,
-        ]
-    }
+
+    // Uncomment to use with proofs.
+    // use ark_std::rand::SeedableRng;
+    // fn seed() -> [u8; 32] {
+    //     [
+    //         1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
+    //         0, 0, 0, 2, 92,
+    //     ]
+    // }
 
     #[test]
     fn test_substitution() {
