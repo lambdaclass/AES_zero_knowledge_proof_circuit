@@ -58,6 +58,7 @@ use simpleworks::{
 use std::cell::RefCell;
 use std::iter::zip;
 use std::rc::Rc;
+use crate::aes::substitute_byte;
 
 pub fn encrypt(
     message: Vec<u8>,
@@ -140,6 +141,28 @@ fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let _ = zip(input_text, key)
         .map(|(cell_i, key_i)| cell_i ^ key_i)
         .collect_slice(&mut ret[..]);
+
+    ret
+}
+
+fn aes_sub_bytes(input_text: &[u8; 16]) -> [u8; 16] {
+    let mut ret = [0_u8; 16];
+    input_text
+        .iter()
+        .map(|v| substitute_byte(*v))
+        .collect_slice(&mut ret[..]);
+
+    ret
+}
+
+fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
+    let mut ret = [0_u8; 16];
+    let mul_matrix = [
+        0x02_u8, 0x01, 0x01, 0x03, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x01,
+        0x03, 0x02, // values repeated
+        0x02, 0x01, 0x01, 0x03, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03, 0x02, 0x01, 0x01, 0x01, 0x03,
+        0x02,
+    ];
 
     ret
 }
