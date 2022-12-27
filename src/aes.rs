@@ -104,10 +104,33 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
         .into_iter()
         .map(|byte| byte.value().unwrap())
         .collect::<Vec<u8>>();
-
-    // Split the bytes as a Vec<&[u8]>, representing the AES state matrix.
-    let mut state_matrix = witness_as_bytes.chunks_mut(4).collect::<Vec<_>>();
-
+    // Turn the bytes into the 4x4 AES state matrix.
+    // The matrix is represented by a 2D array,
+    // where each array is a row.
+    // That is, let's suppose that witness_
+    // as_bytes is formed by the bytes
+    // b0, b1,..., b15.
+    // Then the AES state matrix will look like this:
+    // b0, b4, b8, b12,
+    // b1, b5, b9, b13,
+    // b2, b6, b10, b14,
+    // b3, b7, b11, b15
+    // And our array will look like this:
+    //[
+    //  [b0, b4, b8, b12],
+    //  [b1, b5, b9, b13],
+    //  [b2, b6, b10,b14],
+    //  [b3, b7, b11,b15]
+    //]
+    let mut state_matrix = [[0u8; 4]; 4];
+    for i in 0..4 {
+        state_matrix[i] = [
+            witness_as_bytes[(i % 4) + 0],
+            witness_as_bytes[(i % 4) + 4],
+            witness_as_bytes[(i % 4) + 8],
+            witness_as_bytes[(i % 4) + 12],
+        ]
+    }
     // Rotate every state matrix row (u8 array) like specified by
     // the AES cipher algorithm.
     for (rotations, bytes) in state_matrix.iter_mut().enumerate() {
@@ -117,8 +140,10 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
     // 16 byte array, this is because the u128::from_le_bytes function
     // only accepts 16 byte arrays.
     let mut flattened_bytes = [0u8; 16];
-    for (i, byte) in state_matrix.into_iter().flatten().enumerate() {
-        flattened_bytes[i] = *byte;
+    for i in 0..4 {
+        for j in 0..4 {
+           flattened_bytes[(i * 4) + j] = state_matrix[j][i];
+        }
     }
     u128::from_le_bytes(flattened_bytes)
 }
@@ -149,18 +174,17 @@ mod test {
     #[test]
     fn test_shift() {
         let cs = ConstraintSystem::<Fq>::new_ref();
-        // This example is taken from this blog-post:
-        // https://towardsdatascience.com/aes-encryption-256-bit-a9ae49cde0b6
+        // Generate random 16 bytes, and then check
+        // that the AES shifting works like expected.
+        let value_to_shift: [u8; 16] = rand::random();
         let expected: [u8; 16] = [
-            0xd4, 0xe0, 0xb8, 0x1e, 0xbf, 0xb4, 0x41, 0x27, 0x5d, 0x52, 0x11, 0x98, 0x30, 0xae,
-            0xf1, 0xe5,
-        ];
-        let value_to_shift: [u8; 16] = [
-            0xd4, 0xe0, 0xb8, 0x1e, 0x27, 0xbf, 0xb4, 0x41, 0x11, 0x98, 0x5d, 0x52, 0xae, 0xf1,
-            0xe5, 0x30,
+            value_to_shift[0], value_to_shift[5], value_to_shift[10], value_to_shift[15],
+            value_to_shift[4], value_to_shift[9], value_to_shift[14], value_to_shift[3],
+            value_to_shift[8], value_to_shift[13], value_to_shift[2], value_to_shift[7],
+            value_to_shift[12], value_to_shift[1], value_to_shift[6], value_to_shift[11],
         ];
         let res = shift_rows(u128::from_le_bytes(value_to_shift), &cs);
-        assert_eq!(res.to_le_bytes(), expected);
+        assert_eq!(res, u128::from_le_bytes(expected));
         assert!(cs.is_satisfied().unwrap());
         let (index_vk, proof) = crate::prover::prove(cs);
         let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
