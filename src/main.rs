@@ -6,7 +6,7 @@ fn main() -> Result<()> {
     let secret_key = vec![1u8, 1u8, 1u8, 1u8];
     let (proving_key, verifying_key) = synthetize_keys()?;
 
-    let (_ciphertext, proof) = encrypt(message, secret_key, proving_key)?;
+    let (_ciphertext, proof) = encrypt(&message, &secret_key, proving_key)?;
 
     assert!(verify_encryption(verifying_key, &proof)?);
 
