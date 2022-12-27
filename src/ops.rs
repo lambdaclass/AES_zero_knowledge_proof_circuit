@@ -42,9 +42,9 @@ mod test {
         let cs = ConstraintSystem::<Fq>::new_ref();
         let z = xor(x, y, &cs);
         assert_eq!(expected, z);
-        // This one takes a while
-        let (index_vk, proof) = prover::prove(cs);
-        assert!(prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
+        // TODO: Uncomment this using simpleworks
+        // let (index_vk, proof) = prover::prove(cs);
+        // assert!(prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 
     #[test]
@@ -60,8 +60,8 @@ mod test {
         let cs = ConstraintSystem::<Fq>::new_ref();
         let z = add(x, y, &cs);
         assert_eq!(expected, z);
-        // This one takes a while
-        let (index_vk, proof) = prover::prove(cs);
-        assert!(prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
+        // TODO: Uncomment this using simpleworks
+        // let (index_vk, proof) = prover::prove(cs);
+        // assert!(prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 }

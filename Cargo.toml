@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 ark-ff = { version = "^0.3.0", default-features = false }
 ark-ec = { version = "^0.3.0", default-features = false }
+ark-bls12-377 = { version = "^0.3.0", default-features = false, features = ["curve"] }
 ark-ed-on-bls12-381 = { version = "^0.3.0", features = ["r1cs"] }
 ark-bls12-381 = { version = "^0.3.0", default-features = false, features = ["curve"] }
 ark-std = { version = "^0.3.0", default-features = false }
@@ -43,3 +44,5 @@ zkp = "0.8.0"
 rsa = "0.7.2"
 rand_chacha = {version = "0.3.1"}
 anyhow = "1.0"
+collect_slice = "^1.2.0"
+
