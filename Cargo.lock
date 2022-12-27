@@ -20,6 +20,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
 
 [[package]]
+name = "ark-bls12-377"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc41c02c0d18a226947ee9ee023b1d957bdb6a68fc22ac296722935a9fef423c"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-bls12-381"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -63,6 +74,19 @@ dependencies = [
  "num-traits",
  "rayon",
  "zeroize",
+]
+
+[[package]]
+name = "ark-ed-on-bls12-377"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "143ee71ec22aaca67a094bb678b398589fb4589cc4883d8ecfc4536f0e62cc28"
+dependencies = [
+ "ark-bls12-377",
+ "ark-ec",
+ "ark-ff",
+ "ark-r1cs-std",
+ "ark-std",
 ]
 
 [[package]]
@@ -179,7 +203,7 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "derivative",
- "hashbrown",
+ "hashbrown 0.11.2",
  "rayon",
 ]
 
@@ -401,6 +425,12 @@ checksum = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 dependencies = [
  "bitflags",
 ]
+
+[[package]]
+name = "collect_slice"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcf7ebe98d2f8eba5ecf08e7ffa74384eea74b35d2fdee7aa417cf3a9cbe658"
 
 [[package]]
 name = "const-oid"
@@ -655,6 +685,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -668,6 +704,23 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "indexmap"
+version = "1.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
+dependencies = [
+ "autocfg 1.1.0",
+ "hashbrown 0.12.3",
+ "serde",
+]
+
+[[package]]
+name = "itoa"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
 name = "keccak"
@@ -906,6 +959,7 @@ name = "poc-encryption-proof"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ark-bls12-377",
  "ark-bls12-381",
  "ark-crypto-primitives",
  "ark-ec",
@@ -922,6 +976,7 @@ dependencies = [
  "base64",
  "blake2",
  "byteorder",
+ "collect_slice",
  "curve25519-dalek",
  "digest 0.9.0",
  "elgamal_ristretto",
@@ -1209,6 +1264,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b4b9743ed687d4b4bcedf9ff5eaa7398495ae14e61cba0a295704edbc7decde"
+
+[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1253,6 +1314,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_json"
+version = "1.0.91"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
+dependencies = [
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "sha2"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1286,13 +1358,13 @@ dependencies = [
 [[package]]
 name = "simpleworks"
 version = "0.1.0"
-source = "git+https://github.com/Entropy1729/simpleworks#97c5f99a4fd6f131f0b66abd7ef879da3b3c8708"
+source = "git+https://github.com/Entropy1729/simpleworks#71ee3da3bc2a45e00de1bf1d26cc9c3f5c24af9a"
 dependencies = [
  "anyhow",
- "ark-bls12-381",
+ "ark-bls12-377",
  "ark-crypto-primitives",
  "ark-ec",
- "ark-ed-on-bls12-381",
+ "ark-ed-on-bls12-377",
  "ark-ff",
  "ark-marlin 0.3.0 (git+https://github.com/Entropy1729/marlin.git?branch=use-constraint-system-directly)",
  "ark-poly",
@@ -1307,8 +1379,11 @@ dependencies = [
  "derivative",
  "digest 0.9.0",
  "hex",
+ "indexmap",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
+ "serde",
+ "serde_json",
  "tracing",
  "tracing-subscriber 0.3.16",
 ]
