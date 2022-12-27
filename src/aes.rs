@@ -2,6 +2,8 @@ use anyhow::{Result, anyhow};
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
+
+use crate::helpers::ToAnyhow;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
@@ -73,7 +75,7 @@ const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
     ], // 0xF
 ];
 pub fn substitute_byte(byte: u8) -> Result<u8> {
-    Ok(*AES_LOOKUP_TABLE.get((byte >> 4_i32) as usize).ok_or_else(|| anyhow!(""))?.get((byte & 0x0F_u8) as usize).ok_or_else(|| anyhow!(""))?)
+    Ok(*AES_LOOKUP_TABLE.get((byte >> 4_i32) as usize).to_anyhow("Error getting value of the lookup table")?.get((byte & 0x0F_u8) as usize).to_anyhow("Error getting value of the lookup table")?)
 }
 pub fn substitute_16_bytes(
     num: u128,
