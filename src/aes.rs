@@ -1,6 +1,6 @@
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use ark_relations::r1cs::ConstraintSystemRef;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
@@ -116,16 +116,18 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
     // Turn the rotated arrays into a flattened
     // 16 byte array, this is because the u128::from_le_bytes function
     // only accepts 16 byte arrays.
-    let mut separated_bytes = [0u8; 16];
+    let mut flattened_bytes = [0u8; 16];
     for (i, byte) in state_matrix.into_iter().flatten().enumerate() {
-        separated_bytes[i] = byte.clone();
+        flattened_bytes[i] = byte.clone();
     }
-    return u128::from_le_bytes(separated_bytes);
+    return u128::from_le_bytes(flattened_bytes);
 }
+
+#[cfg(test)]
 mod test {
     use super::*;
-    use ark_std::rand::{Rng, SeedableRng};
-
+    use ark_std::rand::SeedableRng;
+    use ark_relations::r1cs::ConstraintSystem;
     fn seed() -> [u8; 32] {
         return [
             1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
@@ -144,7 +146,6 @@ mod test {
         let result = substitute_16_bytes(num, cs);
         assert_eq!(u128::from_le_bytes(expected), result.0);
     }
-
     #[test]
     fn test_shift() {
         let cs = ConstraintSystem::<Fq>::new_ref();
