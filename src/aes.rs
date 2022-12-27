@@ -120,7 +120,7 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
     for (i, byte) in state_matrix.into_iter().flatten().enumerate() {
         flattened_bytes[i] = *byte;
     }
-    return u128::from_le_bytes(flattened_bytes);
+    u128::from_le_bytes(flattened_bytes)
 }
 
 #[cfg(test)]
