@@ -1,4 +1,7 @@
-use aes::{Aes128, cipher::{KeyInit, BlockEncrypt}};
+use aes::{
+    cipher::{BlockEncrypt, KeyInit},
+    Aes128,
+};
 use anyhow::Result;
 use digest::generic_array::GenericArray;
 use poc_encryption_proof::{encrypt, synthesize_keys, verify_encryption};
@@ -24,4 +27,4 @@ fn primitive_encrypt(message: &[u8; 16], primitive_secret_key: &Aes128) -> Vec<u
     primitive_secret_key.encrypt_block(&mut block);
     encrypted_message.extend_from_slice(block.as_slice());
     encrypted_message
-} 
+}

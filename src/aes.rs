@@ -105,7 +105,9 @@ mod test {
     fn test_substitution() {
         let num = 0x1000_u128;
         let mut expected = num.to_le_bytes();
-        expected.iter_mut().for_each(|e| *e = substitute_byte(*e).unwrap());
+        expected
+            .iter_mut()
+            .for_each(|e| *e = substitute_byte(*e).unwrap());
         let cs = ConstraintSystem::<Fq>::new_ref();
         let result = substitute_16_bytes(num, cs).unwrap();
         assert_eq!(u128::from_le_bytes(expected), result.0);
