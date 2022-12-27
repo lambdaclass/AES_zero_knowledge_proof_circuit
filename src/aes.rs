@@ -118,7 +118,7 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
     // only accepts 16 byte arrays.
     let mut flattened_bytes = [0u8; 16];
     for (i, byte) in state_matrix.into_iter().flatten().enumerate() {
-        flattened_bytes[i] = byte.clone();
+        flattened_bytes[i] = *byte;
     }
     return u128::from_le_bytes(flattened_bytes);
 }
