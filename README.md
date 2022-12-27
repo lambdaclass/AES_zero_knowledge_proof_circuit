@@ -22,10 +22,10 @@ Each AES round takes a message as input and performs the following steps:
 
 | Building Blocks | Required Primitives |
 | --------------- | ------------------- |
-| AddRoundKey     | `xor`               |
+| AddRoundKey     | `xor` (already implemented)               |
 | SubBytes        | Lookup table        |
 | ShiftRows       | Row shifting                   |
-| MixColumns      | `addmany`           |
+| MixColumns      | `addmany` (already implemented)           |
 
 TODO: Explain the following in more depth.
 ### Add RoundKey
@@ -43,4 +43,4 @@ TODO: Explain the following in more depth.
 
 ### Mix Columns
 
-- Multiply columns by a matrix.
+- Multiply columns by a matrix. The primitives for this are already there.
