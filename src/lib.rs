@@ -43,13 +43,13 @@ pub mod helpers;
 pub mod ops;
 
 use anyhow::{anyhow, Result};
-use collect_slice::CollectSlice;
 use ark_ff::BigInteger256;
 use ark_r1cs_std::prelude::Boolean;
 use ark_relations::{
     lc,
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
+use collect_slice::CollectSlice;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -68,8 +68,7 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let ciphertext =
-        encrypt_and_generate_constraints(&constraint_system, message, secret_key)?;
+    let ciphertext = encrypt_and_generate_constraints(&constraint_system, message, secret_key)?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
@@ -75,7 +75,11 @@ const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
     ], // 0xF
 ];
 pub fn substitute_byte(byte: u8) -> Result<u8> {
-    Ok(*AES_LOOKUP_TABLE.get((byte >> 4_i32) as usize).to_anyhow("Error getting value of the lookup table")?.get((byte & 0x0F_u8) as usize).to_anyhow("Error getting value of the lookup table")?)
+    Ok(*AES_LOOKUP_TABLE
+        .get((byte >> 4_i32) as usize)
+        .to_anyhow("Error getting value of the lookup table")?
+        .get((byte & 0x0F_u8) as usize)
+        .to_anyhow("Error getting value of the lookup table")?)
 }
 pub fn substitute_16_bytes(
     num: u128,

@@ -7,7 +7,9 @@ pub trait ToAnyhow<T> {
 
 impl<T> ToAnyhow<T> for Result<T, SynthesisError> {
     fn to_anyhow(self, error_message: &str) -> anyhow::Result<T> {
-        self.map_err(|primitive_error_message| anyhow!("{error_message}: {primitive_error_message}"))
+        self.map_err(|primitive_error_message| {
+            anyhow!("{error_message}: {primitive_error_message}")
+        })
     }
 }
 
