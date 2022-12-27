@@ -94,19 +94,18 @@ pub fn substitute_16_bytes(
     Ok((u128::from_le_bytes(new_bytes), cs))
 }
 
-pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
+pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
     let num_witness =
-        UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num)).unwrap();
+        UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num))?;
 
     // Turn the 128 bit witness into
     // its actual value, in the form of a
     // vector of little endian bytes.
-    let mut witness_as_bytes = num_witness
-        .to_bytes()
-        .unwrap()
+    let witness_as_bytes: Vec<u8> = num_witness
+        .to_bytes()?
         .into_iter()
-        .map(|byte| byte.value().unwrap())
-        .collect::<Vec<u8>>();
+        .map(|byte| Ok(byte.value()?))
+        .collect::<Result<Vec<_>>>()?;
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -148,7 +147,7 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
            flattened_bytes[(i * 4) + j] = state_matrix[j][i];
         }
     }
-    u128::from_le_bytes(flattened_bytes)
+    Ok(u128::from_le_bytes(flattened_bytes))
 }
 #[cfg(test)]
 mod test {
@@ -186,7 +185,7 @@ mod test {
             value_to_shift[12], value_to_shift[1], value_to_shift[6], value_to_shift[11],
         ];
         let res = shift_rows(u128::from_le_bytes(value_to_shift), &cs);
-        assert_eq!(res, u128::from_le_bytes(expected));
+        assert_eq!(res.unwrap(), u128::from_le_bytes(expected));
         assert!(cs.is_satisfied().unwrap());
         // TODO: Uncomment this using simpleworks
         // let (index_vk, proof) = crate::prover::prove(cs);
