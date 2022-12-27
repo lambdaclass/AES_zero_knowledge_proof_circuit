@@ -1,4 +1,4 @@
-# zk_encryption_circuit
+# AES Encryption circuit
 
 ## Circuit Inputs
 
