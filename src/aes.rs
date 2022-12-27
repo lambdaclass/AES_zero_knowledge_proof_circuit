@@ -91,8 +91,8 @@ pub fn substitute_16_bytes(
     return (u128::from_le_bytes(new_bytes), cs);
 }
 
-pub fn shift_rows(num: u128, cs: ConstraintSystemRef<Fq>) -> (u128, ConstraintSystemRef<Fq>) {
-    let mut num_witness =
+pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> u128 {
+    let num_witness =
         UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num)).unwrap();
 
     // Turn the 128 bit witness into
@@ -120,10 +120,20 @@ pub fn shift_rows(num: u128, cs: ConstraintSystemRef<Fq>) -> (u128, ConstraintSy
     for (i, byte) in state_matrix.into_iter().flatten().enumerate() {
         separated_bytes[i] = byte.clone();
     }
-    return (u128::from_le_bytes(separated_bytes), cs);
+    return u128::from_le_bytes(separated_bytes);
 }
 mod test {
     use super::*;
+    use ark_std::rand::{Rng, SeedableRng};
+
+    fn seed() -> [u8; 32] {
+        return [
+            1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
+            0, 0, 0, 2, 92,
+        ];
+    }
+
+    #[test]
     fn test_substitution() {
         let num = 0x1000 as u128;
         let mut expected = num.to_le_bytes();
@@ -134,6 +144,7 @@ mod test {
         let result = substitute_16_bytes(num, cs);
         assert_eq!(u128::from_le_bytes(expected), result.0);
     }
+
     #[test]
     fn test_shift() {
         let cs = ConstraintSystem::<Fq>::new_ref();
@@ -147,8 +158,11 @@ mod test {
             0xd4, 0xe0, 0xb8, 0x1e, 0x27, 0xbf, 0xb4, 0x41, 0x11, 0x98, 0x5d, 0x52, 0xae, 0xf1,
             0xe5, 0x30,
         ];
-        let (res, cs) = shift_rows(u128::from_le_bytes(value_to_shift), cs);
+        let res = shift_rows(u128::from_le_bytes(value_to_shift), &cs);
         assert_eq!(res.to_le_bytes(), expected);
         assert!(cs.is_satisfied().unwrap());
+        let (index_vk, proof) = crate::prover::prove(cs);
+        let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
+        assert!(crate::prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 }
