@@ -1,8 +1,8 @@
+use crate::helpers::ToAnyhow;
 use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
-use crate::helpers::ToAnyhow;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
@@ -95,8 +95,7 @@ pub fn substitute_16_bytes(
 }
 
 pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
-    let num_witness =
-        UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num))?;
+    let num_witness = UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num))?;
 
     // Turn the 128 bit witness into
     // its actual value, in the form of a
@@ -127,10 +126,10 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
     let mut state_matrix = [[0u8; 4]; 4];
     for i in 0..4 {
         state_matrix[i] = [
-            witness_as_bytes[(i % 4) + 0],
-            witness_as_bytes[(i % 4) + 4],
-            witness_as_bytes[(i % 4) + 8],
-            witness_as_bytes[(i % 4) + 12],
+            witness_as_bytes[i + 0],
+            witness_as_bytes[i + 4],
+            witness_as_bytes[i + 8],
+            witness_as_bytes[i + 12],
         ]
     }
     // Rotate every state matrix row (u8 array) like specified by
@@ -144,7 +143,7 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
     let mut flattened_bytes = [0u8; 16];
     for i in 0..4 {
         for j in 0..4 {
-           flattened_bytes[(i * 4) + j] = state_matrix[j][i];
+            flattened_bytes[(i * 4) + j] = state_matrix[j][i];
         }
     }
     Ok(u128::from_le_bytes(flattened_bytes))
@@ -169,11 +168,14 @@ mod test {
     fn test_substitution() {
         let num = 0x1000_u128;
         let mut expected = num.to_le_bytes();
-        expected.iter_mut().for_each(|e| *e = substitute_byte(*e).unwrap());
+        expected
+            .iter_mut()
+            .for_each(|e| *e = substitute_byte(*e).unwrap());
         let cs = ConstraintSystem::<Fq>::new_ref();
         let result = substitute_16_bytes(num, cs).unwrap();
         assert_eq!(u128::from_le_bytes(expected), result.0);
     }
+    #[rustfmt::skip]
     #[test]
     fn test_shift() {
         let cs = ConstraintSystem::<Fq>::new_ref();
