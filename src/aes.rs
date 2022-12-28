@@ -75,10 +75,13 @@ const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
     ], // 0xF
 ];
 pub fn substitute_byte(byte: u8) -> Result<u8> {
+    let value_1: usize = (byte >> 4_i32).try_into()?;
+    let value_2: usize = (byte & 0x0F_u8).try_into()?;
+
     Ok(*AES_LOOKUP_TABLE
-        .get((byte >> 4_i32) as usize)
+        .get(value_1)
         .to_anyhow("Error getting value of the lookup table")?
-        .get((byte & 0x0F_u8) as usize)
+        .get(value_2)
         .to_anyhow("Error getting value of the lookup table")?)
 }
 pub fn substitute_16_bytes(

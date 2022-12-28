@@ -133,6 +133,7 @@ fn encrypt_and_generate_constraints(
     Ok(ciphertext)
 }
 
+#[allow(unused)]
 /// Performs the xor bit by bit between the `input_text` and the key
 fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let mut ret = [0_u8; 16];
