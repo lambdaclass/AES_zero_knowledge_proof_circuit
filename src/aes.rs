@@ -1,9 +1,7 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
-use ark_r1cs_std::{
-    alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget,
-};
+use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
@@ -102,12 +100,11 @@ pub fn substitute_16_bytes(
 pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4]> {
     let mut witnesses: Vec<Vec<u8>> = vec![];
     for value in num {
-        let witness =
-            UInt32::new_witness(ark_relations::ns!(cs, "first_witness"), || Ok(value))?
-                .to_bytes()?
-                .into_iter()
-                .map(|byte| Ok(byte.value()?))
-                .collect::<Result<Vec<u8>>>()?;
+        let witness = UInt32::new_witness(ark_relations::ns!(cs, "first_witness"), || Ok(value))?
+            .to_bytes()?
+            .into_iter()
+            .map(|byte| Ok(byte.value()?))
+            .collect::<Result<Vec<u8>>>()?;
         witnesses.push(witness);
     }
     // Turn the bytes into the 4x4 AES state matrix.
