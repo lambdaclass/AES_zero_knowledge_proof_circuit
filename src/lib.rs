@@ -165,7 +165,7 @@ fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
     /* The array 'a' is simply a copy of the input array 'r'
      * The array 'b' is each element of the array 'a' multiplied by 2
      * in Rijndael's Galois field
-     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */ 
+     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
     for (i, c) in input.iter().enumerate() {
         let h = (c >> 7) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
@@ -177,107 +177,29 @@ fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
         b[0] ^ input[3] ^ input[2] ^ b[1] ^ input[1],
         b[1] ^ input[0] ^ input[3] ^ b[2] ^ input[2],
         b[2] ^ input[1] ^ input[0] ^ b[3] ^ input[3],
-        b[3] ^ input[2] ^ input[1] ^ b[0] ^ input[0]
+        b[3] ^ input[2] ^ input[1] ^ b[0] ^ input[0],
     ]
 }
 
-
 fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
-    let mul_matrix = [2_u8, 3, 1, 1, 1, 2, 3, 1, 1, 1, 2, 3, 3, 1, 1, 2];
+    let mut ret: [u8; 16] = [0; 16];
+    for (pos, column) in input.chunks(4).enumerate() {
+        let column_aux = [column[0], column[1], column[2], column[3]];
+        let column_ret = gmix_column(&column_aux);
 
-    // first row
-    let cell_0_0 = (mul_matrix[0] & input[0])
-        ^ (mul_matrix[1] & input[4])
-        ^ (mul_matrix[2] & input[8])
-        ^ (mul_matrix[3] & input[12]);
+        // put column_ret in ret:
+        ret[pos * 4] = column_ret[0];
+        ret[pos * 4 + 1] = column_ret[1];
+        ret[pos * 4 + 2] = column_ret[2];
+        ret[pos * 4 + 3] = column_ret[3];
+    }
 
-    let cell_0_1 = (mul_matrix[0] & input[1])
-        ^ (mul_matrix[1] & input[5])
-        ^ (mul_matrix[2] & input[9])
-        ^ (mul_matrix[3] & input[13]);
-
-    let cell_0_2 = (mul_matrix[0] & input[2])
-        ^ (mul_matrix[1] & input[6])
-        ^ (mul_matrix[2] & input[10])
-        ^ (mul_matrix[3] & input[14]);
-
-    let cell_0_3 = (mul_matrix[0] & input[3])
-        ^ (mul_matrix[1] & input[7])
-        ^ (mul_matrix[2] & input[11])
-        ^ (mul_matrix[3] & input[15]);
-
-    // second row
-    let cell_1_0 = (mul_matrix[4] & input[0])
-        ^ (mul_matrix[5] & input[4])
-        ^ (mul_matrix[6] & input[8])
-        ^ (mul_matrix[7] & input[12]);
-
-    let cell_1_1 = (mul_matrix[4] & input[1])
-        ^ (mul_matrix[5] & input[5])
-        ^ (mul_matrix[6] & input[9])
-        ^ (mul_matrix[7] & input[13]);
-
-    let cell_1_2 = (mul_matrix[4] & input[2])
-        ^ (mul_matrix[5] & input[6])
-        ^ (mul_matrix[6] & input[10])
-        ^ (mul_matrix[7] & input[14]);
-
-    let cell_1_3 = (mul_matrix[4] & input[3])
-        ^ (mul_matrix[5] & input[7])
-        ^ (mul_matrix[6] & input[11])
-        ^ (mul_matrix[7] & input[15]);
-
-    // third row
-    let cell_2_0 = (mul_matrix[8] & input[0])
-        ^ (mul_matrix[9] & input[4])
-        ^ (mul_matrix[10] & input[8])
-        ^ (mul_matrix[11] & input[12]);
-
-    let cell_2_1 = (mul_matrix[8] & input[1])
-        ^ (mul_matrix[9] & input[5])
-        ^ (mul_matrix[10] & input[9])
-        ^ (mul_matrix[11] & input[13]);
-
-    let cell_2_2 = (mul_matrix[8] & input[2])
-        ^ (mul_matrix[9] & input[6])
-        ^ (mul_matrix[10] & input[10])
-        ^ (mul_matrix[11] & input[14]);
-
-    let cell_2_3 = (mul_matrix[8] & input[3])
-        ^ (mul_matrix[9] & input[7])
-        ^ (mul_matrix[10] & input[11])
-        ^ (mul_matrix[11] & input[15]);
-
-    // forth row
-    let cell_3_0 = (mul_matrix[12] & input[0])
-        ^ (mul_matrix[13] & input[4])
-        ^ (mul_matrix[14] & input[8])
-        ^ (mul_matrix[15] & input[12]);
-
-    let cell_3_1 = (mul_matrix[12] & input[1])
-        ^ (mul_matrix[13] & input[5])
-        ^ (mul_matrix[14] & input[9])
-        ^ (mul_matrix[15] & input[13]);
-
-    let cell_3_2 = (mul_matrix[12] & input[2])
-        ^ (mul_matrix[13] & input[6])
-        ^ (mul_matrix[14] & input[10])
-        ^ (mul_matrix[15] & input[14]);
-
-    let cell_3_3 = (mul_matrix[12] & input[3])
-        ^ (mul_matrix[13] & input[7])
-        ^ (mul_matrix[14] & input[11])
-        ^ (mul_matrix[15] & input[15]);
-
-    [
-        cell_0_0, cell_0_1, cell_0_2, cell_0_3, cell_1_0, cell_1_1, cell_1_2, cell_1_3, cell_2_0,
-        cell_2_1, cell_2_2, cell_2_3, cell_3_0, cell_3_1, cell_3_2, cell_3_3,
-    ]
+    ret
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{mix_columns, gmix_column};
+    use crate::{gmix_column, mix_columns};
 
     const COLUMN_MIX_TRANSFORMATION: [[u8; 4]; 4] = [
         [2_u8, 1_u8, 1_u8, 3_u8],
@@ -295,6 +217,10 @@ mod test {
         let input2: [u8; 4] = [0xd4, 0xbf, 0x5d, 0x30];
         let ret2 = gmix_column(&input2);
         println!("{:?}", ret2);
+
+        let input3: [u8; 4] = [0xe0, 0xb4, 0x52, 0xae];
+        let ret3 = gmix_column(&input3);
+        println!("{:?}", ret3);
     }
 
     // cn = [u8; 4] -> u32 -> [u8; 4];
@@ -305,7 +231,7 @@ mod test {
     #[test]
     fn test_one_round_column_mix() {
         let value_to_mix: [u8; 16] = [
-            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x97,
+            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
             0x98, 0xe5,
         ];
         let expected_mixed_value: [u8; 16] = [
