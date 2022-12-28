@@ -51,6 +51,7 @@ use ark_relations::{
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
 use collect_slice::CollectSlice;
+use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -146,14 +147,17 @@ fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     ret
 }
 
-fn aes_sub_bytes(input_text: &[u8; 16]) -> [u8; 16] {
+fn aes_sub_bytes(input_text: &[u8; 16]) -> Result<[u8; 16]> {
     let mut ret = [0_u8; 16];
     input_text
         .iter()
-        .map(|v| substitute_byte(*v))
-        .collect_slice(&mut ret[..]);
-
-    ret
+        .enumerate()
+        .try_for_each(|(i, byte_to_substitute)| {
+            let substituted_byte = ret.get_mut(i).to_anyhow("Error getting byte")?;
+            *substituted_byte = substitute_byte(*byte_to_substitute)?;
+            Ok::<_, anyhow::Error>(())
+        })?;
+    Ok(ret)
 }
 
 fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
