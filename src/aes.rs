@@ -1,7 +1,9 @@
 use crate::helpers::ToAnyhow;
 use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
-use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
+use ark_r1cs_std::{
+    alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget,
+};
 use ark_relations::r1cs::ConstraintSystemRef;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
@@ -94,17 +96,17 @@ pub fn substitute_16_bytes(
     Ok((u128::from_le_bytes(new_bytes), cs))
 }
 
-pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
-    let num_witness = UInt128::new_witness(ark_relations::ns!(cs, "shift_witness"), || Ok(num))?;
-
-    // Turn the 128 bit witness into
-    // its actual value, in the form of a
-    // vector of little endian bytes.
-    let witness_as_bytes = num_witness
-        .to_bytes()?
-        .into_iter()
-        .map(|byte| Ok(byte.value()?))
-        .collect::<Result<Vec<u8>>>()?;
+pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4]> {
+    let mut witnesses: Vec<Vec<u8>> = vec![];
+    for value in num {
+        let witness =
+            UInt32::new_witness(ark_relations::ns!(cs, "first_witness"), || Ok(value))?
+                .to_bytes()?
+                .into_iter()
+                .map(|byte| Ok(byte.value()?))
+                .collect::<Result<Vec<u8>>>()?;
+        witnesses.push(witness);
+    }
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -123,6 +125,10 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
     //  [b2, b6, b10,b14],
     //  [b3, b7, b11,b15]
     //]
+    let witness_as_bytes = witnesses
+        .into_iter()
+        .flat_map(|vec| vec.into_iter())
+        .collect::<Vec<_>>();
     let mut state_matrix = [[0u8; 4]; 4];
     for i in 0..4 {
         state_matrix[i] = [
@@ -146,7 +152,12 @@ pub fn shift_rows(num: u128, cs: &ConstraintSystemRef<Fq>) -> Result<u128> {
             flattened_bytes[(i * 4) + j] = state_matrix[j][i];
         }
     }
-    Ok(u128::from_le_bytes(flattened_bytes))
+    Ok([
+        u32::from_le_bytes(flattened_bytes[0..4].try_into()?),
+        u32::from_le_bytes(flattened_bytes[4..8].try_into()?),
+        u32::from_le_bytes(flattened_bytes[8..12].try_into()?),
+        u32::from_le_bytes(flattened_bytes[12..16].try_into()?),
+    ])
 }
 #[cfg(test)]
 mod test {
@@ -188,8 +199,21 @@ mod test {
             value_to_shift[8], value_to_shift[13], value_to_shift[2], value_to_shift[7],
             value_to_shift[12], value_to_shift[1], value_to_shift[6], value_to_shift[11],
         ];
-        let res = shift_rows(u128::from_le_bytes(value_to_shift), &cs);
-        assert_eq!(res.unwrap(), u128::from_le_bytes(expected));
+
+        let input = [
+            u32::from_le_bytes(value_to_shift[0..4].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[4..8].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[8..12].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[12..16].try_into().unwrap()),
+        ];
+        let expected_output = [
+            u32::from_le_bytes(expected[0..4].try_into().unwrap()),
+            u32::from_le_bytes(expected[4..8].try_into().unwrap()),
+            u32::from_le_bytes(expected[8..12].try_into().unwrap()),
+            u32::from_le_bytes(expected[12..16].try_into().unwrap()),
+        ];
+        let res = shift_rows(input, &cs);
+        assert_eq!(res.unwrap(), expected_output);
         assert!(cs.is_satisfied().unwrap());
         // TODO: Uncomment this using simpleworks
         // let (index_vk, proof) = crate::prover::prove(cs);
