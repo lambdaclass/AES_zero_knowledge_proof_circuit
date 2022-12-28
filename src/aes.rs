@@ -1,5 +1,5 @@
 use crate::helpers::traits::ToAnyhow;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
@@ -97,22 +97,27 @@ pub fn substitute_16_bytes(
     Ok((u128::from_le_bytes(new_bytes), cs))
 }
 
+// num is a 128 bit number, represented
+// as 4 u32 numbers.
 pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4]> {
-    let mut witnesses: Vec<Vec<u8>> = vec![];
+    let mut witnesses_as_bytes: Vec<Vec<u8>> = vec![];
+    // Add each number to the constrain system,
+    // then turn it into bytes in little endian.
     for value in num {
-        let witness = UInt32::new_witness(ark_relations::ns!(cs, "first_witness"), || Ok(value))?
+        let witness = UInt32::new_witness(ark_relations::ns!(cs, "aes_witness"), || Ok(value))?
             .to_bytes()?
             .into_iter()
             .map(|byte| Ok(byte.value()?))
             .collect::<Result<Vec<u8>>>()?;
-        witnesses.push(witness);
+        witnesses_as_bytes.push(witness);
     }
-    // Turn the bytes into the 4x4 AES state matrix.
+
+    // Turn the 4 u32s (now each as a Vec<u8>) into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
-    // That is, let's suppose that witness_
-    // as_bytes is formed by the bytes
-    // b0, b1,..., b15.
+    // That is, let's suppose that the flattened_bytes variable
+    // is formed by the bytes
+    // [b0, ..., b15]
     // Then the AES state matrix will look like this:
     // b0, b4, b8, b12,
     // b1, b5, b9, b13,
@@ -125,17 +130,17 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
     //  [b2, b6, b10,b14],
     //  [b3, b7, b11,b15]
     //]
-    let witness_as_bytes = witnesses
+    let flattened_bytes = witnesses_as_bytes
         .into_iter()
         .flat_map(|vec| vec.into_iter())
         .collect::<Vec<_>>();
-    let mut state_matrix = [[0u8; 4]; 4];
+    let mut state_matrix = [[0_u8; 4]; 4];
     for i in 0..4 {
         state_matrix[i] = [
-            witness_as_bytes[i + 0],
-            witness_as_bytes[i + 4],
-            witness_as_bytes[i + 8],
-            witness_as_bytes[i + 12],
+            *(flattened_bytes.get(i + 0).context("Out of bounds"))?,
+            *(flattened_bytes.get(i + 4).context("Out of bounds")?),
+            *(flattened_bytes.get(i + 8).context("Out of bounds")?),
+            *(flattened_bytes.get(i + 12).context("Out ouf bounds")?),
         ]
     }
     // Rotate every state matrix row (u8 array) like specified by
@@ -144,19 +149,18 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
         bytes.rotate_left(rotations);
     }
     // Turn the rotated arrays into a flattened
-    // 16 byte array, this is because the u128::from_le_bytes function
-    // only accepts 16 byte arrays.
-    let mut flattened_bytes = [0u8; 16];
+    // 16 byte array, ordered by column.
+    let mut flattened_matrix = [0u8; 16];
     for i in 0..4 {
         for j in 0..4 {
-            flattened_bytes[(i * 4) + j] = state_matrix[j][i];
+            flattened_matrix[(i * 4) + j] = state_matrix[j][i];
         }
     }
     Ok([
-        u32::from_le_bytes(flattened_bytes[0..4].try_into()?),
-        u32::from_le_bytes(flattened_bytes[4..8].try_into()?),
-        u32::from_le_bytes(flattened_bytes[8..12].try_into()?),
-        u32::from_le_bytes(flattened_bytes[12..16].try_into()?),
+        u32::from_le_bytes(flattened_matrix[0..4].try_into()?),
+        u32::from_le_bytes(flattened_matrix[4..8].try_into()?),
+        u32::from_le_bytes(flattened_matrix[8..12].try_into()?),
+        u32::from_le_bytes(flattened_matrix[12..16].try_into()?),
     ])
 }
 #[cfg(test)]
