@@ -201,13 +201,6 @@ fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
 mod test {
     use crate::{gmix_column, mix_columns};
 
-    const COLUMN_MIX_TRANSFORMATION: [[u8; 4]; 4] = [
-        [2_u8, 1_u8, 1_u8, 3_u8],
-        [3_u8, 2_u8, 1_u8, 1_u8],
-        [1_u8, 3_u8, 2_u8, 1_u8],
-        [1_u8, 1_u8, 3_u8, 2_u8],
-    ];
-
     #[test]
     fn test_gcolumn_mix() {
         let input: [u8; 4] = [0xdb, 0x13, 0x53, 0x45];
