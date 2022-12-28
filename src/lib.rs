@@ -160,6 +160,28 @@ fn aes_sub_bytes(input_text: &[u8; 16]) -> Result<[u8; 16]> {
     Ok(ret)
 }
 
+fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
+    let mut b: [u8; 4] = [0; 4];
+    /* The array 'a' is simply a copy of the input array 'r'
+     * The array 'b' is each element of the array 'a' multiplied by 2
+     * in Rijndael's Galois field
+     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */ 
+
+    for (i, c) in input.iter().enumerate() {
+        let h = (c >> 7) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
+        b[i] = c << 1; /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+        b[i] ^= h * 0x1B; /* Rijndael's Galois field */
+    }
+
+    [
+        b[0] ^ input[3] ^ input[2] ^ b[1] ^ input[1],
+        b[1] ^ input[0] ^ input[3] ^ b[2] ^ input[2],
+        b[2] ^ input[1] ^ input[0] ^ b[3] ^ input[3],
+        b[3] ^ input[2] ^ input[1] ^ b[0] ^ input[0]
+    ]
+}
+
+
 fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
     let mul_matrix = [2_u8, 3, 1, 1, 1, 2, 3, 1, 1, 1, 2, 3, 3, 1, 1, 2];
 
@@ -255,7 +277,7 @@ fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
 
 #[cfg(test)]
 mod test {
-    use crate::mix_columns;
+    use crate::{mix_columns, gmix_column};
 
     const COLUMN_MIX_TRANSFORMATION: [[u8; 4]; 4] = [
         [2_u8, 1_u8, 1_u8, 3_u8],
@@ -263,6 +285,17 @@ mod test {
         [1_u8, 3_u8, 2_u8, 1_u8],
         [1_u8, 1_u8, 3_u8, 2_u8],
     ];
+
+    #[test]
+    fn test_gcolumn_mix() {
+        let input: [u8; 4] = [0xdb, 0x13, 0x53, 0x45];
+        let ret = gmix_column(&input);
+        println!("{:?}", ret);
+
+        let input2: [u8; 4] = [0xd4, 0xbf, 0x5d, 0x30];
+        let ret2 = gmix_column(&input2);
+        println!("{:?}", ret2);
+    }
 
     // cn = [u8; 4] -> u32 -> [u8; 4];
     // [2, 1, 1, 3] [c0] = [2c0 + c1 + c2 + 3c3]
@@ -272,10 +305,12 @@ mod test {
     #[test]
     fn test_one_round_column_mix() {
         let value_to_mix: [u8; 16] = [
-            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x97, 0x98, 0xe5
+            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x97,
+            0x98, 0xe5,
         ];
         let expected_mixed_value: [u8; 16] = [
-            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06, 0x26, 0x4c
+            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
+            0x26, 0x4c,
         ];
 
         let mixed_column_vector = mix_columns(&value_to_mix);
