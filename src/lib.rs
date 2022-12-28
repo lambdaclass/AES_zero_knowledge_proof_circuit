@@ -94,7 +94,7 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
     )
 }
 
-pub fn synthetize_keys() -> Result<(ProvingKey, VerifyingKey)> {
+pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs = simpleworks::marlin::generate_universal_srs(rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
@@ -133,6 +133,7 @@ fn encrypt_and_generate_constraints(
     Ok(ciphertext)
 }
 
+#[allow(unused)]
 /// Performs the xor bit by bit between the `input_text` and the key
 fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let mut ret = [0_u8; 16];
