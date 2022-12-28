@@ -94,7 +94,7 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
     )
 }
 
-pub fn synthetize_keys() -> Result<(ProvingKey, VerifyingKey)> {
+pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs = simpleworks::marlin::generate_universal_srs(rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();

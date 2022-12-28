@@ -45,4 +45,5 @@ rsa = "0.7.2"
 rand_chacha = {version = "0.3.1"}
 anyhow = "1.0"
 collect_slice = "^1.2.0"
+aes = "0.8"
 
