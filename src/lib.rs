@@ -253,14 +253,33 @@ fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
     ]
 }
 
+#[cfg(test)]
 mod test {
-    #[test]
-    fn test_chunk() {
-        let slice = ['l', 'o', 'r', 'e', 'm'];
-        let iter = slice.chunks(2);
+    use crate::mix_columns;
 
-        for v in iter {
-            println!("{:?}", v);
-        }
+    const COLUMN_MIX_TRANSFORMATION: [[u8; 4]; 4] = [
+        [2_u8, 1_u8, 1_u8, 3_u8],
+        [3_u8, 2_u8, 1_u8, 1_u8],
+        [1_u8, 3_u8, 2_u8, 1_u8],
+        [1_u8, 1_u8, 3_u8, 2_u8],
+    ];
+
+    // cn = [u8; 4] -> u32 -> [u8; 4];
+    // [2, 1, 1, 3] [c0] = [2c0 + c1 + c2 + 3c3]
+    // [3, 2, 1, 1] [c1] = [3c0 + 2c1 + c2 + c3]
+    // [1, 3, 2, 1] [c2] = [c0 + 3c1 + 2c2 + c3]
+    // [1, 1, 3, 2] [c3] = [c0 + c1 + 3c2 + 2c3]
+    #[test]
+    fn test_one_round_column_mix() {
+        let value_to_mix: [u8; 16] = [
+            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x97, 0x98, 0xe5
+        ];
+        let expected_mixed_value: [u8; 16] = [
+            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06, 0x26, 0x4c
+        ];
+
+        let mixed_column_vector = mix_columns(&value_to_mix);
+
+        assert_eq!(expected_mixed_value, mixed_column_vector);
     }
 }
