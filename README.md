@@ -1,5 +1,7 @@
 # AES Encryption circuit
 
+ZK-Snark circuit to prove that a ciphertext is the correct AES encryption using a certain secret key. The first iteration will only encrypt one block.
+
 ## Circuit Inputs
 
 - `message`: The message to encrypt
