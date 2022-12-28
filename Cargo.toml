@@ -19,30 +19,10 @@ ark-r1cs-std = { version = "^0.3.0", default-features = false }
 ark-snark = { version = "^0.3.0", default-features = false }
 ark-serialize = { version = "^0.3.0", default-features = false }
 ark-crypto-primitives = { version = "^0.3.0", default-features = true, features = [ "r1cs" ] }
-rand = "0.7"
-# ark-marlin = "0.3.0"
-# ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "use-constraint-system-directly" }
-ark-marlin = { git = "https://github.com/Entropy1729/marlin.git", branch = "impl_debug_for_vk" }
-blake2 = { version = "0.9" }
 simpleworks = {git = "https://github.com/Entropy1729/simpleworks"}
-curve25519-dalek = { version = "2.0.0", default-features = false, features = ["serde"] }
-elgamal_ristretto = "0.2.3"
-rand_core = { version = "0.5.1", default-features = false }
-sha2 = { version = "0.8", default-features = false }
-byteorder = { version = "^1.2.3", default-features = false, features = ["i128"] }
 digest = { version = "0.9", default-features = false }
-subtle = { version = "^2.2.1", default-features = false }
-serde = { version = "1.0", default-features = false, optional = true, features = ["derive"] }
-# The original packed_simd package was orphaned, see
-# https://github.com/rust-lang/packed_simd/issues/303#issuecomment-701361161
-packed_simd = { version = "0.3.4", package = "packed_simd_2", features = ["into_bits"], optional = true }
-zeroize = { version = "1", default-features = false }
-fiat-crypto = { version = "0.1.6", optional = true}
-hex = "0.4.2"
-base64 = "0.13.1"
-zkp = "0.8.0"
-rsa = "0.7.2"
 rand_chacha = {version = "0.3.1"}
 anyhow = "1.0"
 collect_slice = "^1.2.0"
+aes = "0.8"
 
