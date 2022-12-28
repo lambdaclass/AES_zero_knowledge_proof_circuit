@@ -160,7 +160,7 @@ fn aes_sub_bytes(input_text: &[u8; 16]) -> Result<[u8; 16]> {
     Ok(ret)
 }
 
-fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
+fn gmix_column(input: &[u8; 4]) -> Option<[u8; 4]> {
     let mut b: [u8; 4] = [0; 4];
     /* The array 'a' is simply a copy of the input array 'r'
      * The array 'b' is each element of the array 'a' multiplied by 2
@@ -168,17 +168,17 @@ fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
      * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
     for (i, c) in input.iter().enumerate() {
-        let h = (c >> 7) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
-        b[i] = c << 1; /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
-        b[i] ^= h * 0x1B; /* Rijndael's Galois field */
+        let h = (c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
+        *b.get_mut(i)? = (c << 1_usize) ^ (h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+        /* Rijndael's Galois field */
     }
 
-    [
-        b[0] ^ input[3] ^ input[2] ^ b[1] ^ input[1],
-        b[1] ^ input[0] ^ input[3] ^ b[2] ^ input[2],
-        b[2] ^ input[1] ^ input[0] ^ b[3] ^ input[3],
-        b[3] ^ input[2] ^ input[1] ^ b[0] ^ input[0],
-    ]
+    Some([
+        b.first()? ^ input.get(3)? ^ input.get(2)? ^ b.get(1)? ^ input.get(1)?,
+        b.get(1)? ^ input.first()? ^ input.get(3)? ^ b.get(2)? ^ input.get(2)?,
+        b.get(2)? ^ input.get(1)? ^ input.first()? ^ b.get(3)? ^ input.get(3)?,
+        b.get(3)? ^ input.get(2)? ^ input.get(1)? ^ b.first()? ^ input.first()?,
+    ])
 }
 
 fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
@@ -191,7 +191,7 @@ fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
             *column.get(2)?,
             *column.get(3)?,
         ];
-        let column_ret = gmix_column(&column_aux);
+        let column_ret = gmix_column(&column_aux)?;
 
         // put column_ret in ret:
         *ret.get_mut(pos * 4)? = *column_ret.first()?;
