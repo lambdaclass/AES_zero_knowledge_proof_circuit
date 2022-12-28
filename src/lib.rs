@@ -181,20 +181,26 @@ fn gmix_column(input: &[u8; 4]) -> [u8; 4] {
     ]
 }
 
-fn mix_columns(input: &[u8; 16]) -> [u8; 16] {
-    let mut ret: [u8; 16] = [0; 16];
+fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
+    let mut ret = [0_u8; 16];
+
     for (pos, column) in input.chunks(4).enumerate() {
-        let column_aux = [column[0], column[1], column[2], column[3]];
+        let column_aux = [
+            *column.first()?,
+            *column.get(1)?,
+            *column.get(2)?,
+            *column.get(3)?,
+        ];
         let column_ret = gmix_column(&column_aux);
 
         // put column_ret in ret:
-        ret[pos * 4] = column_ret[0];
-        ret[pos * 4 + 1] = column_ret[1];
-        ret[pos * 4 + 2] = column_ret[2];
-        ret[pos * 4 + 3] = column_ret[3];
+        *ret.get_mut(pos * 4)? = *column_ret.first()?;
+        *ret.get_mut(pos * 4 + 1)? = *column_ret.get(1)?;
+        *ret.get_mut(pos * 4 + 2)? = *column_ret.get(2)?;
+        *ret.get_mut(pos * 4 + 3)? = *column_ret.get(3)?;
     }
 
-    ret
+    Some(ret)
 }
 
 #[cfg(test)]
@@ -232,7 +238,7 @@ mod test {
             0x26, 0x4c,
         ];
 
-        let mixed_column_vector = mix_columns(&value_to_mix);
+        let mixed_column_vector = mix_columns(&value_to_mix).unwrap();
 
         assert_eq!(expected_mixed_value, mixed_column_vector);
     }
