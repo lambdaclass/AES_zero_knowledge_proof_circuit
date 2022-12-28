@@ -1,9 +1,9 @@
+use crate::helpers::traits::ToAnyhow;
 use anyhow::Result;
 use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 
-use crate::helpers::ToAnyhow;
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
