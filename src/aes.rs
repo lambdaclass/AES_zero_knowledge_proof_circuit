@@ -238,26 +238,29 @@ pub fn derive_keys(secret_key: &[u8; 16]) -> Result<[[u8; 16]; 11]> {
         u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
     ];
 
-    let mut result = [0u32; 44];
+    let mut result = [0_u32; 44];
 
-    let w_0 = to_u32(&secret_key[..4]);
-    let w_1 = to_u32(&secret_key[4..8]);
-    let w_2 = to_u32(&secret_key[8..12]);
-    let w_3 = to_u32(&secret_key[12..16]);
-
-    result[0] = w_0;
-    result[1] = w_1;
-    result[2] = w_2;
-    result[3] = w_3;
+    result[0] = to_u32(&secret_key[..4]).to_anyhow("Error converting to u32")?;
+    result[1] = to_u32(&secret_key[4..8]).to_anyhow("Error converting to u32")?;
+    result[2] = to_u32(&secret_key[8..12]).to_anyhow("Error converting to u32")?;
+    result[3] = to_u32(&secret_key[12..16]).to_anyhow("Error converting to u32")?;
 
     for i in 4..44 {
         if i % 4 == 0 {
-            let substituted_and_rotated =
-                to_u32(&crate::substitute_word(&rotate_word(result[i - 1]))?);
-            let w_i = (result[i - 4] ^ (substituted_and_rotated)) ^ ROUND_CONSTANTS[i / 4 - 1];
-            result[i] = w_i;
+            let substituted_and_rotated = to_u32(&crate::substitute_word(&rotate_word(
+                *result.get(i - 1).to_anyhow("Error converting to u32")?,
+            ))?)
+            .to_anyhow("Error converting to u32")?;
+
+            *result.get_mut(i).to_anyhow("Error getting elem")? =
+                (result.get(i - 4).to_anyhow("Error getting elem")? ^ (substituted_and_rotated))
+                    ^ ROUND_CONSTANTS
+                        .get(i / 4 - 1)
+                        .to_anyhow("Error getting elem")?;
         } else {
-            result[i] = result[i - 4] ^ result[i - 1];
+            *result.get_mut(i).to_anyhow("Error getting elem")? =
+                result.get(i - 4).to_anyhow("Error getting elem")?
+                    ^ result.get(i - 1).to_anyhow("Error getting elem")?;
         }
     }
 
@@ -265,22 +268,31 @@ pub fn derive_keys(secret_key: &[u8; 16]) -> Result<[[u8; 16]; 11]> {
 
     for (i, elem) in result.chunks(4).enumerate() {
         elem.iter()
-            .map(|e| e.to_be_bytes())
-            .flat_map(|s| s)
-            .collect_slice(&mut ret[i][..]);
+            .flat_map(|e| e.to_be_bytes())
+            .collect_slice(&mut ret.get_mut(i).to_anyhow("Error getting elem")?[..]);
     }
 
     Ok(ret)
 }
 
-fn to_u32(value: &[u8]) -> u32 {
-    let array_aux: [u8; 4] = [value[0], value[1], value[2], value[3]];
-    u32::from_be_bytes(array_aux)
+fn to_u32(value: &[u8]) -> Option<u32> {
+    let array_aux: [u8; 4] = [
+        *value.first()?,
+        *value.get(1)?,
+        *value.get(2)?,
+        *value.get(3)?,
+    ];
+    Some(u32::from_be_bytes(array_aux))
 }
 
 fn rotate_word(input: u32) -> [u8; 4] {
-    let bytes = input.to_be_bytes();
-    [bytes[1], bytes[2], bytes[3], bytes[0]]
+    let bytes: [u8; 4] = input.to_be_bytes();
+    [
+        *bytes.get(1).unwrap_or(&0),
+        *bytes.get(2).unwrap_or(&0),
+        *bytes.get(3).unwrap_or(&0),
+        *bytes.first().unwrap_or(&0),
+    ]
 }
 
 #[cfg(test)]

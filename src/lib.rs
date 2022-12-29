@@ -119,7 +119,7 @@ fn encrypt_and_generate_constraints(
     */
 
     let mut ciphertext: Vec<u8> = Vec::new();
-    let _round_keys = aes::derive_keys(&secret_key);
+    let _round_keys = aes::derive_keys(secret_key);
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
@@ -144,7 +144,7 @@ fn encrypt_and_generate_constraints(
 }
 
 fn substitute_word(input: &[u8; 4]) -> Result<[u8; 4]> {
-    let mut result = [0u8; 4];
+    let mut result = [0_u8; 4];
     result[0] = substitute_byte(input[0])?;
     result[1] = substitute_byte(input[1])?;
     result[2] = substitute_byte(input[2])?;
