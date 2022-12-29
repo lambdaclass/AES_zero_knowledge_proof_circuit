@@ -219,6 +219,82 @@ pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
     Some(ret)
 }
 
+/// This function returns the derived keys from the secret key.
+/// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
+/// which we represent as 4 32-bit words, so we compute 44 32-bit elements
+/// W_0, W_1, ..., W_43. The first four constitute the first round key, the
+/// second four the second one, and so on.
+pub fn derive_keys(secret_key: &[u8; 16]) -> Result<[[u8; 16]; 11]> {
+    const ROUND_CONSTANTS: [u32; 10] = [
+        u32::from_be_bytes([0x01, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x02, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x04, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x08, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x10, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x20, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x40, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x80, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
+        u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
+    ];
+
+    let mut result = [0_u32; 44];
+
+    result[0] = to_u32(&secret_key[..4]).to_anyhow("Error converting to u32")?;
+    result[1] = to_u32(&secret_key[4..8]).to_anyhow("Error converting to u32")?;
+    result[2] = to_u32(&secret_key[8..12]).to_anyhow("Error converting to u32")?;
+    result[3] = to_u32(&secret_key[12..16]).to_anyhow("Error converting to u32")?;
+
+    for i in 4..44 {
+        if i % 4 == 0 {
+            let substituted_and_rotated = to_u32(&crate::substitute_word(&rotate_word(
+                *result.get(i - 1).to_anyhow("Error converting to u32")?,
+            ))?)
+            .to_anyhow("Error converting to u32")?;
+
+            *result.get_mut(i).to_anyhow("Error getting elem")? =
+                (result.get(i - 4).to_anyhow("Error getting elem")? ^ (substituted_and_rotated))
+                    ^ ROUND_CONSTANTS
+                        .get(i / 4 - 1)
+                        .to_anyhow("Error getting elem")?;
+        } else {
+            *result.get_mut(i).to_anyhow("Error getting elem")? =
+                result.get(i - 4).to_anyhow("Error getting elem")?
+                    ^ result.get(i - 1).to_anyhow("Error getting elem")?;
+        }
+    }
+
+    let mut ret = [[0_u8; 16]; 11];
+
+    for (i, elem) in result.chunks(4).enumerate() {
+        elem.iter()
+            .flat_map(|e| e.to_be_bytes())
+            .collect_slice(&mut ret.get_mut(i).to_anyhow("Error getting elem")?[..]);
+    }
+
+    Ok(ret)
+}
+
+fn to_u32(value: &[u8]) -> Option<u32> {
+    let array_aux: [u8; 4] = [
+        *value.first()?,
+        *value.get(1)?,
+        *value.get(2)?,
+        *value.get(3)?,
+    ];
+    Some(u32::from_be_bytes(array_aux))
+}
+
+fn rotate_word(input: u32) -> [u8; 4] {
+    let bytes: [u8; 4] = input.to_be_bytes();
+    [
+        *bytes.get(1).unwrap_or(&0),
+        *bytes.get(2).unwrap_or(&0),
+        *bytes.get(3).unwrap_or(&0),
+        *bytes.first().unwrap_or(&0),
+    ]
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -292,5 +368,24 @@ mod test {
         let mixed_column_vector = mix_columns(&value_to_mix).unwrap();
 
         assert_eq!(expected_mixed_value, mixed_column_vector);
+    }
+
+    #[test]
+    fn key_expansion() {
+        let secret_key = [
+            0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+        let result = derive_keys(&secret_key).unwrap();
+
+        assert_eq!(
+            result[10],
+            [
+                0xd0, 0x14, 0xf9, 0xa8, 0xc9, 0xee, 0x25, 0x89, 0xe1, 0x3f, 0x0c, 0xc8, 0xb6, 0x63,
+                0x0c, 0xa6,
+            ]
+        );
+
+        println!("{:x?}", result);
     }
 }
