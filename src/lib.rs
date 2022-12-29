@@ -42,13 +42,9 @@ pub mod aes;
 pub mod helpers;
 pub mod ops;
 
+use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
-use ark_ff::BigInteger256;
-use ark_r1cs_std::prelude::Boolean;
-use ark_relations::{
-    lc,
-    r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
-};
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
@@ -121,6 +117,7 @@ fn encrypt_and_generate_constraints(
     */
 
     let mut ciphertext: Vec<u8> = Vec::new();
+    let _round_keys = aes::derive_keys(secret_key);
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
@@ -141,13 +138,15 @@ fn encrypt_and_generate_constraints(
         ciphertext.extend_from_slice(&after_add_round_key);
     }
 
-    let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
-
-    let b = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
-
-    let difference: LinearCombination<ConstraintF> = lc!() + a - b;
-    let true_variable = &Boolean::<ConstraintF>::TRUE;
-    cs.enforce_constraint(difference, true_variable.lc(), lc!())?;
-
     Ok(ciphertext)
+}
+
+fn substitute_word(input: &[u8; 4]) -> Result<[u8; 4]> {
+    let mut result = [0_u8; 4];
+    result[0] = substitute_byte(input[0])?;
+    result[1] = substitute_byte(input[1])?;
+    result[2] = substitute_byte(input[2])?;
+    result[3] = substitute_byte(input[3])?;
+
+    Ok(result)
 }
