@@ -1,9 +1,9 @@
 use crate::helpers::traits::ToAnyhow;
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint8::UInt8, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
-use simpleworks::gadgets::ConstraintF;
+use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
 use std::iter::zip;
 
 // Reference: https://www.gfuzz.de/AES_2.html
@@ -92,8 +92,14 @@ pub fn add_round_key_c(
     input: &[UInt8Gadget],
     round_key: &[UInt8Gadget],
 ) -> Result<Vec<UInt8Gadget>> {
-    ensure!(input.len() == 16, "Input must be 16 bytes length when adding round key");
-    ensure!(round_key.len() == 16, "Round key must be 16 bytes length when adding round key");
+    ensure!(
+        input.len() == 16,
+        "Input must be 16 bytes length when adding round key"
+    );
+    ensure!(
+        round_key.len() == 16,
+        "Round key must be 16 bytes length when adding round key"
+    );
 
     let output = input
         .iter()
@@ -410,5 +416,38 @@ mod test {
         );
 
         println!("{result:x?}");
+    }
+
+    #[test]
+    fn test_add_round_key_circuit() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let plaintext = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "parameters"),
+            &[
+                0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
+                0x07, 0x34,
+            ],
+        )
+        .unwrap();
+        let secret_key = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "parameters"),
+            &[
+                0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                0x4f, 0x3c,
+            ],
+        )
+        .unwrap();
+        let expected_primitive_result = [
+            0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b, 0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8,
+            0x48, 0x08,
+        ];
+
+        let after_add_round_key = add_round_key_c(&plaintext, &secret_key).unwrap();
+
+        assert_eq!(
+            after_add_round_key.value().unwrap(),
+            expected_primitive_result
+        );
+        assert!(cs.is_satisfied().unwrap());
     }
 }
