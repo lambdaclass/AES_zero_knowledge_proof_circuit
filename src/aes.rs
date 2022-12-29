@@ -469,7 +469,7 @@ mod test {
     fn test_add_round_key_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let plaintext = UInt8Gadget::new_witness_vec(
-            ark_relations::ns!(cs, "parameters"),
+            ark_relations::ns!(cs, "plaintext"),
             &[
                 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
                 0x07, 0x34,
@@ -477,7 +477,7 @@ mod test {
         )
         .unwrap();
         let secret_key = UInt8Gadget::new_witness_vec(
-            ark_relations::ns!(cs, "parameters"),
+            ark_relations::ns!(cs, "secret_key"),
             &[
                 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
                 0x4f, 0x3c,
@@ -494,6 +494,31 @@ mod test {
         assert_eq!(
             after_add_round_key.value().unwrap(),
             expected_primitive_result
+        );
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn test_one_round_column_mix_circuit() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let value_to_mix = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "value_to_mix"),
+            &[
+                0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
+                0x98, 0xe5,
+            ],
+        )
+        .unwrap();
+        let expected_primitive_mixed_value: [u8; 16] = [
+            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
+            0x26, 0x4c,
+        ];
+
+        let mixed_column_vector = mix_columns_c(&value_to_mix).unwrap();
+
+        assert_eq!(
+            mixed_column_vector.value().unwrap(), 
+            expected_primitive_mixed_value
         );
         assert!(cs.is_satisfied().unwrap());
     }
