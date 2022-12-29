@@ -248,6 +248,53 @@ pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
     Some(ret)
 }
 
+fn gmix_column_c(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
+    let mut b: Vec<UInt8Gadget> = Vec::new();
+    /* The array 'a' is simply a copy of the input array 'r'
+     * The array 'b' is each element of the array 'a' multiplied by 2
+     * in Rijndael's Galois field
+     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
+
+    // TODO: Generate constraints for bit shifting.
+    for c in input.iter() {
+        let cs = c.cs();
+
+        let primitive_c = c.value().ok()?;
+        let primitive_h = (primitive_c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
+        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+
+        b.push(UInt8Gadget::new_witness(cs, || Ok(primitive_b_byte)).ok()?);
+        /* Rijndael's Galois field */
+    }
+
+    Some([
+        b.first()?.xor(input.get(3)?).ok()?.xor(input.get(2)?).ok()?.xor(b.get(1)?).ok()?.xor(input.get(1)?).ok()?,
+        b.get(1)?.xor(input.first()?).ok()?.xor(input.get(3)?).ok()?.xor(b.get(2)?).ok()?.xor(input.get(2)?).ok()?,
+        b.get(2)?.xor(input.get(1)?).ok()?.xor(input.first()?).ok()?.xor(b.get(3)?).ok()?.xor(input.get(3)?).ok()?,
+        b.get(3)?.xor(input.get(2)?).ok()?.xor(input.get(1)?).ok()?.xor(b.first()?).ok()?.xor(input.first()?).ok()?,
+    ])
+}
+
+pub fn mix_columns_c(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+    let mut mixed_input = UInt8Gadget::constant_vec(&[0_u8; 16]);
+    for (i, column) in input.chunks(4).enumerate() {
+        let column_aux = [
+            column.first()?.clone(),
+            column.get(1)?.clone(),
+            column.get(2)?.clone(),
+            column.get(3)?.clone(),
+        ];
+        let column_ret = gmix_column_c(&column_aux)?;
+
+        *mixed_input.get_mut(i * 4)? = column_ret.first()?.clone();
+        *mixed_input.get_mut(i * 4 + 1)? = column_ret.get(1)?.clone();
+        *mixed_input.get_mut(i * 4 + 2)? = column_ret.get(2)?.clone();
+        *mixed_input.get_mut(i * 4 + 3)? = column_ret.get(3)?.clone();
+    }
+
+    Some(mixed_input)
+}
+
 /// This function returns the derived keys from the secret key.
 /// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
 /// which we represent as 4 32-bit words, so we compute 44 32-bit elements
