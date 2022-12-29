@@ -141,7 +141,7 @@ pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Result<[u8;
     let mut state_matrix = [[0_u8; 4]; 4];
     for (i, state) in state_matrix.iter_mut().enumerate() {
         *state = [
-            *(bytes.get(i + 0).context("Out of bounds"))?,
+            *(bytes.first().context("Out of bounds"))?,
             *(bytes.get(i + 4).context("Out of bounds")?),
             *(bytes.get(i + 8).context("Out of bounds")?),
             *(bytes.get(i + 12).context("Out ouf bounds")?),

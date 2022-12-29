@@ -2,7 +2,6 @@
 mod tests {
     use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_std::{end_timer, start_timer};
     use poc_encryption_proof::aes::{add_round_key, mix_columns, shift_rows, substitute_bytes};
 
     #[test]
