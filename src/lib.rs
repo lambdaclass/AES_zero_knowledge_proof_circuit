@@ -137,9 +137,19 @@ fn encrypt_and_generate_constraints(
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
             if round < 10_usize {
-                after_add_round_key = aes::add_round_key(&after_mix_columns, round_keys.get(round).to_anyhow(&format!("Error getting round key in round {round}"))?);
+                after_add_round_key = aes::add_round_key(
+                    &after_mix_columns,
+                    round_keys
+                        .get(round)
+                        .to_anyhow(&format!("Error getting round key in round {round}"))?,
+                );
             } else {
-                after_add_round_key = aes::add_round_key(&after_shift_rows, round_keys.get(round).to_anyhow(&format!("Error getting round key in round {round}"))?);
+                after_add_round_key = aes::add_round_key(
+                    &after_shift_rows,
+                    round_keys
+                        .get(round)
+                        .to_anyhow(&format!("Error getting round key in round {round}"))?,
+                );
             }
         }
         ciphertext.extend_from_slice(&after_add_round_key);
