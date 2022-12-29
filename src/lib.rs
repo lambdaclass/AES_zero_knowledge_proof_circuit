@@ -42,7 +42,6 @@ pub mod aes;
 pub mod helpers;
 pub mod ops;
 
-use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
 use ark_ff::BigInteger256;
 use ark_r1cs_std::prelude::Boolean;
@@ -50,8 +49,6 @@ use ark_relations::{
     lc,
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
-use collect_slice::CollectSlice;
-use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -59,7 +56,6 @@ use simpleworks::{
     marlin::{MarlinProof, ProvingKey, VerifyingKey},
 };
 use std::cell::RefCell;
-use std::iter::zip;
 use std::rc::Rc;
 
 pub fn encrypt(
@@ -133,113 +129,4 @@ fn encrypt_and_generate_constraints(
 
     let ciphertext = vec![];
     Ok(ciphertext)
-}
-
-#[allow(unused)]
-/// Performs the xor bit by bit between the `input_text` and the key
-fn aes_add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
-    let mut ret = [0_u8; 16];
-
-    let _ = zip(input_text, key)
-        .map(|(cell_i, key_i)| cell_i ^ key_i)
-        .collect_slice(&mut ret[..]);
-
-    ret
-}
-
-fn aes_sub_bytes(input_text: &[u8; 16]) -> Result<[u8; 16]> {
-    let mut ret = [0_u8; 16];
-    input_text
-        .iter()
-        .enumerate()
-        .try_for_each(|(i, byte_to_substitute)| {
-            let substituted_byte = ret.get_mut(i).to_anyhow("Error getting byte")?;
-            *substituted_byte = substitute_byte(*byte_to_substitute)?;
-            Ok::<_, anyhow::Error>(())
-        })?;
-    Ok(ret)
-}
-
-fn gmix_column(input: &[u8; 4]) -> Option<[u8; 4]> {
-    let mut b: [u8; 4] = [0; 4];
-    /* The array 'a' is simply a copy of the input array 'r'
-     * The array 'b' is each element of the array 'a' multiplied by 2
-     * in Rijndael's Galois field
-     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
-
-    for (i, c) in input.iter().enumerate() {
-        let h = (c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
-        *b.get_mut(i)? = (c << 1_usize) ^ (h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
-        /* Rijndael's Galois field */
-    }
-
-    Some([
-        b.first()? ^ input.get(3)? ^ input.get(2)? ^ b.get(1)? ^ input.get(1)?,
-        b.get(1)? ^ input.first()? ^ input.get(3)? ^ b.get(2)? ^ input.get(2)?,
-        b.get(2)? ^ input.get(1)? ^ input.first()? ^ b.get(3)? ^ input.get(3)?,
-        b.get(3)? ^ input.get(2)? ^ input.get(1)? ^ b.first()? ^ input.first()?,
-    ])
-}
-
-fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
-    let mut ret = [0_u8; 16];
-
-    for (pos, column) in input.chunks(4).enumerate() {
-        let column_aux = [
-            *column.first()?,
-            *column.get(1)?,
-            *column.get(2)?,
-            *column.get(3)?,
-        ];
-        let column_ret = gmix_column(&column_aux)?;
-
-        // put column_ret in ret:
-        *ret.get_mut(pos * 4)? = *column_ret.first()?;
-        *ret.get_mut(pos * 4 + 1)? = *column_ret.get(1)?;
-        *ret.get_mut(pos * 4 + 2)? = *column_ret.get(2)?;
-        *ret.get_mut(pos * 4 + 3)? = *column_ret.get(3)?;
-    }
-
-    Some(ret)
-}
-
-#[cfg(test)]
-mod test {
-    use crate::{gmix_column, mix_columns};
-
-    #[test]
-    fn test_gcolumn_mix() {
-        let input: [u8; 4] = [0xdb, 0x13, 0x53, 0x45];
-        let ret = gmix_column(&input);
-        println!("{:?}", ret);
-
-        let input2: [u8; 4] = [0xd4, 0xbf, 0x5d, 0x30];
-        let ret2 = gmix_column(&input2);
-        println!("{:?}", ret2);
-
-        let input3: [u8; 4] = [0xe0, 0xb4, 0x52, 0xae];
-        let ret3 = gmix_column(&input3);
-        println!("{:?}", ret3);
-    }
-
-    // cn = [u8; 4] -> u32 -> [u8; 4];
-    // [2, 1, 1, 3] [c0] = [2c0 + c1 + c2 + 3c3]
-    // [3, 2, 1, 1] [c1] = [3c0 + 2c1 + c2 + c3]
-    // [1, 3, 2, 1] [c2] = [c0 + 3c1 + 2c2 + c3]
-    // [1, 1, 3, 2] [c3] = [c0 + c1 + 3c2 + 2c3]
-    #[test]
-    fn test_one_round_column_mix() {
-        let value_to_mix: [u8; 16] = [
-            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
-            0x98, 0xe5,
-        ];
-        let expected_mixed_value: [u8; 16] = [
-            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
-            0x26, 0x4c,
-        ];
-
-        let mixed_column_vector = mix_columns(&value_to_mix).unwrap();
-
-        assert_eq!(expected_mixed_value, mixed_column_vector);
-    }
 }

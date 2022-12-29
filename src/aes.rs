@@ -1,12 +1,15 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{Context, Result};
 use ark_ed_on_bls12_381::Fq;
-use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget};
+use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint8::UInt8, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
+use collect_slice::CollectSlice;
+use std::iter::zip;
+
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
-const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
+const SUBSTITUTION_TABLE: [[u8; 16]; 16] = [
     // 0x0,  0x1,  0x2,  0x3,  0x4,  0x5,  0x6,  0x7,  0x8,  0x9,  0xA,  0xB,  0xC,  0xD,  0xE,  0xF,
     [
         0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB,
@@ -73,46 +76,51 @@ const AES_LOOKUP_TABLE: [[u8; 16]; 16] = [
         0x16,
     ], // 0xF
 ];
+
+/// Performs the xor bit by bit between the `input_text` and the key
+pub fn add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+    let mut ret = [0_u8; 16];
+
+    let _ = zip(input_text, key)
+        .map(|(cell_i, key_i)| cell_i ^ key_i)
+        .collect_slice(&mut ret[..]);
+
+    ret
+}
+
 pub fn substitute_byte(byte: u8) -> Result<u8> {
     let value_1: usize = (byte >> 4_i32).try_into()?;
     let value_2: usize = (byte & 0x0F_u8).try_into()?;
-
-    Ok(*AES_LOOKUP_TABLE
+    Ok(*SUBSTITUTION_TABLE
         .get(value_1)
-        .to_anyhow("Error getting value of the lookup table")?
+        .to_anyhow("Error getting value of the substitution table")?
         .get(value_2)
-        .to_anyhow("Error getting value of the lookup table")?)
+        .to_anyhow("Error getting value of the substitution table")?)
 }
-pub fn substitute_16_bytes(
-    num: u128,
-    cs: ConstraintSystemRef<Fq>,
-) -> Result<(u128, ConstraintSystemRef<Fq>)> {
-    let num_witness =
-        UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || Ok(num))?;
-    let mut new_bytes = [0_u8; 16];
 
-    for (new_byte, byte) in new_bytes.iter_mut().zip(num_witness.to_bytes()?) {
+pub fn substitute_bytes(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Result<[u8; 16]> {
+    let num_witness =
+        UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || {
+            Ok(u128::from_le_bytes(*bytes))
+        })?;
+
+    let mut substituted_bytes = [0_u8; 16];
+    for (new_byte, byte) in substituted_bytes.iter_mut().zip(num_witness.to_bytes()?) {
         *new_byte = substitute_byte(byte.value()?)?;
     }
-    Ok((u128::from_le_bytes(new_bytes), cs))
+
+    Ok(substituted_bytes)
 }
 
 // num is a 128 bit number, represented
 // as 4 u32 numbers.
-pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4]> {
-    let mut witnesses_as_bytes: Vec<Vec<u8>> = vec![];
-    // Add each number to the constrain system,
-    // then turn it into bytes in little endian.
-    for value in num {
-        let witness = UInt32::new_witness(ark_relations::ns!(cs, "aes_witness"), || Ok(value))?
-            .to_bytes()?
-            .into_iter()
-            .map(|byte| Ok(byte.value()?))
-            .collect::<Result<Vec<u8>>>()?;
-        witnesses_as_bytes.push(witness);
+pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Result<[u8; 16]> {
+    // Add each number to the constrain system.
+    for byte in bytes {
+        UInt8::new_witness(ark_relations::ns!(cs, "shift_rows_witness"), || Ok(byte))?;
     }
 
-    // Turn the 4 u32s (now each as a Vec<u8>) into the 4x4 AES state matrix.
+    // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
     // That is, let's suppose that the flattened_bytes variable
@@ -130,19 +138,16 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
     //  [b2, b6, b10,b14],
     //  [b3, b7, b11,b15]
     //]
-    let flattened_bytes = witnesses_as_bytes
-        .into_iter()
-        .flat_map(Vec::into_iter)
-        .collect::<Vec<_>>();
     let mut state_matrix = [[0_u8; 4]; 4];
     for (i, state) in state_matrix.iter_mut().enumerate() {
         *state = [
-            *(flattened_bytes.get(i + 0).context("Out of bounds"))?,
-            *(flattened_bytes.get(i + 4).context("Out of bounds")?),
-            *(flattened_bytes.get(i + 8).context("Out of bounds")?),
-            *(flattened_bytes.get(i + 12).context("Out ouf bounds")?),
+            *(bytes.get(i).context("Out of bounds"))?,
+            *(bytes.get(i + 4).context("Out of bounds")?),
+            *(bytes.get(i + 8).context("Out of bounds")?),
+            *(bytes.get(i + 12).context("Out ouf bounds")?),
         ];
     }
+
     // Rotate every state matrix row (u8 array) like specified by
     // the AES cipher algorithm.
     for (rotations, bytes) in state_matrix.iter_mut().enumerate() {
@@ -150,6 +155,7 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
         // circuit, but it should in the future.
         bytes.rotate_left(rotations);
     }
+
     // Turn the rotated arrays into a flattened
     // 16 byte array, ordered by column.
     let mut flattened_matrix = [0_u8; 16];
@@ -164,39 +170,67 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
                 .to_anyhow("Error getting element of state_matrix")?;
         }
     }
-    Ok([
-        u32::from_le_bytes(flattened_matrix[0..4].try_into()?),
-        u32::from_le_bytes(flattened_matrix[4..8].try_into()?),
-        u32::from_le_bytes(flattened_matrix[8..12].try_into()?),
-        u32::from_le_bytes(flattened_matrix[12..16].try_into()?),
+    Ok(flattened_matrix)
+}
+
+fn gmix_column(input: &[u8; 4]) -> Option<[u8; 4]> {
+    let mut b: [u8; 4] = [0; 4];
+    /* The array 'a' is simply a copy of the input array 'r'
+     * The array 'b' is each element of the array 'a' multiplied by 2
+     * in Rijndael's Galois field
+     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
+
+    for (i, c) in input.iter().enumerate() {
+        let h = (c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
+        *b.get_mut(i)? = (c << 1_usize) ^ (h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+        /* Rijndael's Galois field */
+    }
+
+    Some([
+        b.first()? ^ input.get(3)? ^ input.get(2)? ^ b.get(1)? ^ input.get(1)?,
+        b.get(1)? ^ input.first()? ^ input.get(3)? ^ b.get(2)? ^ input.get(2)?,
+        b.get(2)? ^ input.get(1)? ^ input.first()? ^ b.get(3)? ^ input.get(3)?,
+        b.get(3)? ^ input.get(2)? ^ input.get(1)? ^ b.first()? ^ input.first()?,
     ])
 }
+
+pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
+    let mut ret = [0_u8; 16];
+
+    for (pos, column) in input.chunks(4).enumerate() {
+        let column_aux = [
+            *column.first()?,
+            *column.get(1)?,
+            *column.get(2)?,
+            *column.get(3)?,
+        ];
+        let column_ret = gmix_column(&column_aux)?;
+
+        // put column_ret in ret:
+        *ret.get_mut(pos * 4)? = *column_ret.first()?;
+        *ret.get_mut(pos * 4 + 1)? = *column_ret.get(1)?;
+        *ret.get_mut(pos * 4 + 2)? = *column_ret.get(2)?;
+        *ret.get_mut(pos * 4 + 3)? = *column_ret.get(3)?;
+    }
+
+    Some(ret)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::aes::{substitute_16_bytes, substitute_byte};
-    use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
-
-    // Uncomment to use with proofs.
-    // use ark_std::rand::SeedableRng;
-    // fn seed() -> [u8; 32] {
-    //     [
-    //         1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
-    //         0, 0, 0, 2, 92,
-    //     ]
-    // }
 
     #[test]
     fn test_substitution() {
-        let num = 0x1000_u128;
-        let mut expected = num.to_le_bytes();
+        let num = 0x1000_u128.to_le_bytes();
+        let mut expected = num;
         expected
             .iter_mut()
             .for_each(|e| *e = substitute_byte(*e).unwrap());
         let cs = ConstraintSystem::<Fq>::new_ref();
-        let result = substitute_16_bytes(num, cs).unwrap();
-        assert_eq!(u128::from_le_bytes(expected), result.0);
+        let result = substitute_bytes(&num, &cs).unwrap();
+        assert_eq!(expected, result);
     }
     #[rustfmt::skip]
     #[test]
@@ -212,24 +246,48 @@ mod test {
             value_to_shift[12], value_to_shift[1], value_to_shift[6], value_to_shift[11],
         ];
 
-        let input = [
-            u32::from_le_bytes(value_to_shift[0..4].try_into().unwrap()),
-            u32::from_le_bytes(value_to_shift[4..8].try_into().unwrap()),
-            u32::from_le_bytes(value_to_shift[8..12].try_into().unwrap()),
-            u32::from_le_bytes(value_to_shift[12..16].try_into().unwrap()),
-        ];
-        let expected_output = [
-            u32::from_le_bytes(expected[0..4].try_into().unwrap()),
-            u32::from_le_bytes(expected[4..8].try_into().unwrap()),
-            u32::from_le_bytes(expected[8..12].try_into().unwrap()),
-            u32::from_le_bytes(expected[12..16].try_into().unwrap()),
-        ];
-        let res = shift_rows(input, &cs);
-        assert_eq!(res.unwrap(), expected_output);
+        let res = shift_rows(&value_to_shift, &cs);
+        assert_eq!(res.unwrap(), expected);
         assert!(cs.is_satisfied().unwrap());
         // TODO: Uncomment this using simpleworks
         // let (index_vk, proof) = crate::prover::prove(cs);
         // let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
         // assert!(crate::prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
+    }
+
+    #[test]
+    fn test_gcolumn_mix() {
+        let input: [u8; 4] = [0xdb, 0x13, 0x53, 0x45];
+        let ret = gmix_column(&input);
+        println!("{ret:?}");
+
+        let input2: [u8; 4] = [0xd4, 0xbf, 0x5d, 0x30];
+        let ret2 = gmix_column(&input2);
+        println!("{ret2:?}");
+
+        let input3: [u8; 4] = [0xe0, 0xb4, 0x52, 0xae];
+        let ret3 = gmix_column(&input3);
+        println!("{ret3:?}");
+    }
+
+    // cn = [u8; 4] -> u32 -> [u8; 4];
+    // [2, 1, 1, 3] [c0] = [2c0 + c1 + c2 + 3c3]
+    // [3, 2, 1, 1] [c1] = [3c0 + 2c1 + c2 + c3]
+    // [1, 3, 2, 1] [c2] = [c0 + 3c1 + 2c2 + c3]
+    // [1, 1, 3, 2] [c3] = [c0 + c1 + 3c2 + 2c3]
+    #[test]
+    fn test_one_round_column_mix() {
+        let value_to_mix: [u8; 16] = [
+            0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
+            0x98, 0xe5,
+        ];
+        let expected_mixed_value: [u8; 16] = [
+            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
+            0x26, 0x4c,
+        ];
+
+        let mixed_column_vector = mix_columns(&value_to_mix).unwrap();
+
+        assert_eq!(expected_mixed_value, mixed_column_vector);
     }
 }
