@@ -119,9 +119,13 @@ fn encrypt_and_generate_constraints(
         `cs`.
     */
     // @@@@@@@@@
-    let input_text: [u8; 16] = [0; 16];
-    let after_round_key = aes_add_round_key(&input_text, secret_key);
-
+    let after_round_key = aes::add_round_key(message, secret_key);
+    let after_substitute_bytes = aes::substitute_bytes(&after_round_key, cs)?;
+    let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
+    let after_mix_columns =
+        aes::mix_columns(&after_shift_rows).to_anyhow("Error mixing columns when encrypting")?;
+    // This ciphertext should represent the next round plaintext and use the round key.
+    let ciphertext = aes::add_round_key(&after_mix_columns, secret_key);
 
     let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
 
@@ -131,6 +135,5 @@ fn encrypt_and_generate_constraints(
     let true_variable = &Boolean::<ConstraintF>::TRUE;
     cs.enforce_constraint(difference, true_variable.lc(), lc!())?;
 
-    let ciphertext = vec![];
     Ok(ciphertext)
 }
