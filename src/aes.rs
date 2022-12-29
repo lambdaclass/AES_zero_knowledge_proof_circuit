@@ -268,10 +268,42 @@ fn gmix_column_c(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
     }
 
     Some([
-        b.first()?.xor(input.get(3)?).ok()?.xor(input.get(2)?).ok()?.xor(b.get(1)?).ok()?.xor(input.get(1)?).ok()?,
-        b.get(1)?.xor(input.first()?).ok()?.xor(input.get(3)?).ok()?.xor(b.get(2)?).ok()?.xor(input.get(2)?).ok()?,
-        b.get(2)?.xor(input.get(1)?).ok()?.xor(input.first()?).ok()?.xor(b.get(3)?).ok()?.xor(input.get(3)?).ok()?,
-        b.get(3)?.xor(input.get(2)?).ok()?.xor(input.get(1)?).ok()?.xor(b.first()?).ok()?.xor(input.first()?).ok()?,
+        b.first()?
+            .xor(input.get(3)?)
+            .ok()?
+            .xor(input.get(2)?)
+            .ok()?
+            .xor(b.get(1)?)
+            .ok()?
+            .xor(input.get(1)?)
+            .ok()?,
+        b.get(1)?
+            .xor(input.first()?)
+            .ok()?
+            .xor(input.get(3)?)
+            .ok()?
+            .xor(b.get(2)?)
+            .ok()?
+            .xor(input.get(2)?)
+            .ok()?,
+        b.get(2)?
+            .xor(input.get(1)?)
+            .ok()?
+            .xor(input.first()?)
+            .ok()?
+            .xor(b.get(3)?)
+            .ok()?
+            .xor(input.get(3)?)
+            .ok()?,
+        b.get(3)?
+            .xor(input.get(2)?)
+            .ok()?
+            .xor(input.get(1)?)
+            .ok()?
+            .xor(b.first()?)
+            .ok()?
+            .xor(input.first()?)
+            .ok()?,
     ])
 }
 
@@ -517,7 +549,7 @@ mod test {
         let mixed_column_vector = mix_columns_c(&value_to_mix).unwrap();
 
         assert_eq!(
-            mixed_column_vector.value().unwrap(), 
+            mixed_column_vector.value().unwrap(),
             expected_primitive_mixed_value
         );
         assert!(cs.is_satisfied().unwrap());
