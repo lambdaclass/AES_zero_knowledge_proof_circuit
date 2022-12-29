@@ -117,14 +117,16 @@ fn encrypt_and_generate_constraints(
     */
 
     let mut ciphertext: Vec<u8> = Vec::new();
-    let _round_keys = aes::derive_keys(secret_key);
+    let round_keys = aes::derive_keys(secret_key)?;
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
     for block in message.chunks(16) {
         // Step 0
         let mut after_add_round_key = aes::add_round_key(block, secret_key);
-        for round in 0_i32..10_i32 {
+        // Starting at 1 will skip the first round key which is the same as
+        // the secret key.
+        for round in 1_usize..=10_usize {
             // Step 1
             let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
             // Step 2
@@ -134,10 +136,10 @@ fn encrypt_and_generate_constraints(
                 .to_anyhow("Error mixing columns when encrypting")?;
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
-            if round < 9_i32 {
-                after_add_round_key = aes::add_round_key(&after_mix_columns, secret_key);
+            if round < 10_usize {
+                after_add_round_key = aes::add_round_key(&after_mix_columns, round_keys.get(round).to_anyhow(&format!("Error getting round key in round {round}"))?);
             } else {
-                after_add_round_key = aes::add_round_key(&after_shift_rows, secret_key);
+                after_add_round_key = aes::add_round_key(&after_shift_rows, round_keys.get(round).to_anyhow(&format!("Error getting round key in round {round}"))?);
             }
         }
         ciphertext.extend_from_slice(&after_add_round_key);
