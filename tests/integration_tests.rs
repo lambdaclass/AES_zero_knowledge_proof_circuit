@@ -1,12 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
-    use poc_encryption_proof::aes::{add_round_key, mix_columns, shift_rows, substitute_bytes};
+    use poc_encryption_proof::{
+        aes::{add_round_key, mix_columns, shift_rows, substitute_bytes},
+        encrypt, synthesize_keys,
+    };
+    use simpleworks::gadgets::ConstraintF;
 
     #[test]
     fn test_one_round_aes_encryption() {
-        let cs = ConstraintSystem::<Fq>::new_ref();
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let plaintext: [u8; 16] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
             0x07, 0x34,
@@ -73,5 +76,27 @@ mod tests {
             start_of_next_round, expected_start_of_next_round,
             "Start of next round is incorrect"
         );
+    }
+
+    #[test]
+    fn test_encryption() {
+        let plaintext: [u8; 16] = [
+            0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
+            0x07, 0x34,
+        ];
+        let key: [u8; 16] = [
+            0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+        let (proving_key, _verifying_key) = synthesize_keys().unwrap();
+        let expected_ciphertext = [
+            0x2f, 0x18, 0x94, 0xf3, 0xc8, 0x65, 0xcb, 0x3c, 0xe3, 0x0f, 0xc6, 0xf2, 0x21, 0xc9,
+            0x69, 0x70,
+        ];
+
+        // TODO: Assert against proof.
+        let (ciphertext, _proof) = encrypt(&plaintext, &key, proving_key).unwrap();
+
+        assert_eq!(ciphertext, expected_ciphertext);
     }
 }
