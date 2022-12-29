@@ -126,18 +126,23 @@ fn encrypt_and_generate_constraints(
     // 1 round ECB
     for block in message.chunks(16) {
         // Step 0
-        let after_add_round_key = aes::add_round_key(block, secret_key);
-        // Step 1
-        let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
-        // Step 2
-        let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
-        // Step 3
-        let after_mix_columns = aes::mix_columns(&after_shift_rows)
-            .to_anyhow("Error mixing columns when encrypting")?;
-        // Step 4
-        // This ciphertext should represent the next round plaintext and use the round key.
-        let after_add_round_key = aes::add_round_key(&after_mix_columns, secret_key);
-
+        let mut after_add_round_key = aes::add_round_key(block, secret_key);
+        for round in 0_i32..10_i32 {
+            // Step 1
+            let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
+            // Step 2
+            let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
+            // Step 3
+            let after_mix_columns = aes::mix_columns(&after_shift_rows)
+                .to_anyhow("Error mixing columns when encrypting")?;
+            // Step 4
+            // This ciphertext should represent the next round plaintext and use the round key.
+            if round < 9_i32 {
+                after_add_round_key = aes::add_round_key(&after_mix_columns, secret_key);
+            } else {
+                after_add_round_key = aes::add_round_key(&after_shift_rows, secret_key);
+            }
+        }
         ciphertext.extend_from_slice(&after_add_round_key);
     }
 
