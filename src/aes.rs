@@ -88,6 +88,29 @@ pub fn add_round_key(input_text: &[u8], key: &[u8; 16]) -> [u8; 16] {
     ret
 }
 
+pub fn add_round_key_c(
+    input: &[UInt8Gadget],
+    round_key: &[UInt8Gadget],
+) -> Result<Vec<UInt8Gadget>> {
+    ensure!(input.len() == 16, "Input must be 16 bytes length when adding round key");
+    ensure!(round_key.len() == 16, "Round key must be 16 bytes length when adding round key");
+
+    let output = input
+        .iter()
+        .zip(round_key)
+        .filter_map(|(input_text_byte, round_key_byte)| {
+            input_text_byte
+                .xor(round_key_byte)
+                .to_anyhow("Error adding round key")
+                .ok()
+        })
+        .collect::<Vec<UInt8Gadget>>();
+
+    ensure!(output.len() == 16, "Error adding round key");
+
+    Ok(output)
+}
+
 pub fn substitute_byte(byte: u8) -> Result<u8> {
     let value_1: usize = (byte >> 4_i32).try_into()?;
     let value_2: usize = (byte & 0x0F_u8).try_into()?;
