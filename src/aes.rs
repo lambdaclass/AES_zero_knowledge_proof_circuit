@@ -132,16 +132,16 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
     //]
     let flattened_bytes = witnesses_as_bytes
         .into_iter()
-        .flat_map(|vec| vec.into_iter())
+        .flat_map(Vec::into_iter)
         .collect::<Vec<_>>();
     let mut state_matrix = [[0_u8; 4]; 4];
-    for i in 0..4 {
-        state_matrix[i] = [
+    for (i, state) in state_matrix.iter_mut().enumerate() {
+        *state = [
             *(flattened_bytes.get(i + 0).context("Out of bounds"))?,
             *(flattened_bytes.get(i + 4).context("Out of bounds")?),
             *(flattened_bytes.get(i + 8).context("Out of bounds")?),
             *(flattened_bytes.get(i + 12).context("Out ouf bounds")?),
-        ]
+        ];
     }
     // Rotate every state matrix row (u8 array) like specified by
     // the AES cipher algorithm.
@@ -152,10 +152,16 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
     }
     // Turn the rotated arrays into a flattened
     // 16 byte array, ordered by column.
-    let mut flattened_matrix = [0u8; 16];
+    let mut flattened_matrix = [0_u8; 16];
     for i in 0..4 {
         for j in 0..4 {
-            flattened_matrix[(i * 4) + j] = state_matrix[j][i];
+            *flattened_matrix
+                .get_mut((i * 4) + j)
+                .to_anyhow("Error getting element of flattened_matrix slice")? = *state_matrix
+                .get(j)
+                .to_anyhow("Error getting element of state_matrix")?
+                .get(i)
+                .to_anyhow("Error getting element of state_matrix")?;
         }
     }
     Ok([
