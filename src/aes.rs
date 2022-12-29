@@ -146,6 +146,8 @@ pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4
     // Rotate every state matrix row (u8 array) like specified by
     // the AES cipher algorithm.
     for (rotations, bytes) in state_matrix.iter_mut().enumerate() {
+        // For the moment this operation does not generate constraints in the
+        // circuit, but it should in the future.
         bytes.rotate_left(rotations);
     }
     // Turn the rotated arrays into a flattened
