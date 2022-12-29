@@ -44,9 +44,7 @@ pub mod ops;
 
 use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
-use ark_relations::{
-    r1cs::{ConstraintSystem, ConstraintSystemRef},
-};
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
