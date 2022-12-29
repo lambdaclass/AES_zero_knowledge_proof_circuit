@@ -60,7 +60,7 @@ use std::rc::Rc;
 
 pub fn encrypt(
     message: &[u8],
-    secret_key: &[u8],
+    secret_key: &[u8; 16],
     proving_key: ProvingKey,
 ) -> Result<(Vec<u8>, MarlinProof)> {
     let rng = &mut simpleworks::marlin::generate_rand();
@@ -112,12 +112,16 @@ pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
 fn encrypt_and_generate_constraints(
     cs: &ConstraintSystemRef<ConstraintF>,
     _message: &[u8],
-    _secret_key: &[u8],
+    secret_key: &[u8; 16],
 ) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
         `cs`.
     */
+    // @@@@@@@@@
+    let input_text: [u8; 16] = [0; 16];
+    let after_round_key = aes_add_round_key(&input_text, secret_key);
+
 
     let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
 
