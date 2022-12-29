@@ -60,10 +60,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub fn encrypt(
-    message: &[u8; 16],
+    message: &[u8],
     secret_key: &[u8; 16],
     proving_key: ProvingKey,
-) -> Result<([u8; 16], MarlinProof)> {
+) -> Result<(Vec<u8>, MarlinProof)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
@@ -112,21 +112,34 @@ pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
 
 fn encrypt_and_generate_constraints(
     cs: &ConstraintSystemRef<ConstraintF>,
-    message: &[u8; 16],
+    message: &[u8],
     secret_key: &[u8; 16],
-) -> Result<[u8; 16]> {
+) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
         `cs`.
     */
 
-    let after_round_key = aes::add_round_key(message, secret_key);
-    let after_substitute_bytes = aes::substitute_bytes(&after_round_key, cs)?;
-    let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
-    let after_mix_columns =
-        aes::mix_columns(&after_shift_rows).to_anyhow("Error mixing columns when encrypting")?;
-    // This ciphertext should represent the next round plaintext and use the round key.
-    let ciphertext = aes::add_round_key(&after_mix_columns, secret_key);
+    let mut ciphertext: Vec<u8> = Vec::new();
+
+    // TODO: Make this in 10 rounds instead of 1.
+    // 1 round ECB
+    for block in message.chunks(16) {
+        // Step 0
+        let after_add_round_key = aes::add_round_key(block, secret_key);
+        // Step 1
+        let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
+        // Step 2
+        let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
+        // Step 3
+        let after_mix_columns = aes::mix_columns(&after_shift_rows)
+            .to_anyhow("Error mixing columns when encrypting")?;
+        // Step 4
+        // This ciphertext should represent the next round plaintext and use the round key.
+        let after_add_round_key = aes::add_round_key(&after_mix_columns, secret_key);
+
+        ciphertext.extend_from_slice(&after_add_round_key);
+    }
 
     let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
 

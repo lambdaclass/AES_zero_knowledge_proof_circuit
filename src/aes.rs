@@ -78,7 +78,7 @@ const SUBSTITUTION_TABLE: [[u8; 16]; 16] = [
 ];
 
 /// Performs the xor bit by bit between the `input_text` and the key
-pub fn add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+pub fn add_round_key(input_text: &[u8], key: &[u8; 16]) -> [u8; 16] {
     let mut ret = [0_u8; 16];
 
     let _ = zip(input_text, key)
