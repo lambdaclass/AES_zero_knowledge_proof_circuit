@@ -67,7 +67,7 @@ mod tests {
         );
         // We should use the round key instead of the secret key here when
         // key expansion is implemented.
-        let start_of_next_round = add_round_key(&after_mix_columns, &round_keys.get(1).unwrap());
+        let start_of_next_round = add_round_key(&after_mix_columns, round_keys.get(1).unwrap());
         assert_eq!(
             start_of_next_round, expected_start_of_next_round,
             "Start of next round is incorrect"

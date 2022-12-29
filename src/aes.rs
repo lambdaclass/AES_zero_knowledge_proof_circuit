@@ -386,6 +386,6 @@ mod test {
             ]
         );
 
-        println!("{:x?}", result);
+        println!("{result:x?}");
     }
 }
