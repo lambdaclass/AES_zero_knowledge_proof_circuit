@@ -1,9 +1,8 @@
 use crate::helpers::traits::ToAnyhow;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ark_ed_on_bls12_381::Fq;
-use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, R1CSVar, ToBytesGadget};
+use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint32::UInt32, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
-
 // Reference: https://www.gfuzz.de/AES_2.html
 // From what I understand, this is vulnerable to timing attacks,
 // so it is usally done on runtime, but this will do for us for now.
@@ -98,11 +97,95 @@ pub fn substitute_16_bytes(
     Ok((u128::from_le_bytes(new_bytes), cs))
 }
 
+// num is a 128 bit number, represented
+// as 4 u32 numbers.
+pub fn shift_rows(num: [u32; 4], cs: &ConstraintSystemRef<Fq>) -> Result<[u32; 4]> {
+    let mut witnesses_as_bytes: Vec<Vec<u8>> = vec![];
+    // Add each number to the constrain system,
+    // then turn it into bytes in little endian.
+    for value in num {
+        let witness = UInt32::new_witness(ark_relations::ns!(cs, "aes_witness"), || Ok(value))?
+            .to_bytes()?
+            .into_iter()
+            .map(|byte| Ok(byte.value()?))
+            .collect::<Result<Vec<u8>>>()?;
+        witnesses_as_bytes.push(witness);
+    }
+
+    // Turn the 4 u32s (now each as a Vec<u8>) into the 4x4 AES state matrix.
+    // The matrix is represented by a 2D array,
+    // where each array is a row.
+    // That is, let's suppose that the flattened_bytes variable
+    // is formed by the bytes
+    // [b0, ..., b15]
+    // Then the AES state matrix will look like this:
+    // b0, b4, b8, b12,
+    // b1, b5, b9, b13,
+    // b2, b6, b10, b14,
+    // b3, b7, b11, b15
+    // And our array will look like this:
+    //[
+    //  [b0, b4, b8, b12],
+    //  [b1, b5, b9, b13],
+    //  [b2, b6, b10,b14],
+    //  [b3, b7, b11,b15]
+    //]
+    let flattened_bytes = witnesses_as_bytes
+        .into_iter()
+        .flat_map(Vec::into_iter)
+        .collect::<Vec<_>>();
+    let mut state_matrix = [[0_u8; 4]; 4];
+    for (i, state) in state_matrix.iter_mut().enumerate() {
+        *state = [
+            *(flattened_bytes.get(i + 0).context("Out of bounds"))?,
+            *(flattened_bytes.get(i + 4).context("Out of bounds")?),
+            *(flattened_bytes.get(i + 8).context("Out of bounds")?),
+            *(flattened_bytes.get(i + 12).context("Out ouf bounds")?),
+        ];
+    }
+    // Rotate every state matrix row (u8 array) like specified by
+    // the AES cipher algorithm.
+    for (rotations, bytes) in state_matrix.iter_mut().enumerate() {
+        // For the moment this operation does not generate constraints in the
+        // circuit, but it should in the future.
+        bytes.rotate_left(rotations);
+    }
+    // Turn the rotated arrays into a flattened
+    // 16 byte array, ordered by column.
+    let mut flattened_matrix = [0_u8; 16];
+    for i in 0..4 {
+        for j in 0..4 {
+            *flattened_matrix
+                .get_mut((i * 4) + j)
+                .to_anyhow("Error getting element of flattened_matrix slice")? = *state_matrix
+                .get(j)
+                .to_anyhow("Error getting element of state_matrix")?
+                .get(i)
+                .to_anyhow("Error getting element of state_matrix")?;
+        }
+    }
+    Ok([
+        u32::from_le_bytes(flattened_matrix[0..4].try_into()?),
+        u32::from_le_bytes(flattened_matrix[4..8].try_into()?),
+        u32::from_le_bytes(flattened_matrix[8..12].try_into()?),
+        u32::from_le_bytes(flattened_matrix[12..16].try_into()?),
+    ])
+}
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::aes::{substitute_16_bytes, substitute_byte};
     use ark_ed_on_bls12_381::Fq;
     use ark_relations::r1cs::ConstraintSystem;
+
+    // Uncomment to use with proofs.
+    // use ark_std::rand::SeedableRng;
+    // fn seed() -> [u8; 32] {
+    //     [
+    //         1, 0, 52, 0, 0, 0, 0, 0, 1, 0, 10, 0, 22, 32, 0, 0, 2, 0, 55, 49, 0, 11, 0, 0, 3, 0, 0,
+    //         0, 0, 0, 2, 92,
+    //     ]
+    // }
 
     #[test]
     fn test_substitution() {
@@ -114,5 +197,39 @@ mod test {
         let cs = ConstraintSystem::<Fq>::new_ref();
         let result = substitute_16_bytes(num, cs).unwrap();
         assert_eq!(u128::from_le_bytes(expected), result.0);
+    }
+    #[rustfmt::skip]
+    #[test]
+    fn test_shift() {
+        let cs = ConstraintSystem::<Fq>::new_ref();
+        // Generate random 16 bytes, and then check
+        // that the AES shifting works like expected.
+        let value_to_shift: [u8; 16] = rand::random();
+        let expected: [u8; 16] = [
+            value_to_shift[0], value_to_shift[5], value_to_shift[10], value_to_shift[15],
+            value_to_shift[4], value_to_shift[9], value_to_shift[14], value_to_shift[3],
+            value_to_shift[8], value_to_shift[13], value_to_shift[2], value_to_shift[7],
+            value_to_shift[12], value_to_shift[1], value_to_shift[6], value_to_shift[11],
+        ];
+
+        let input = [
+            u32::from_le_bytes(value_to_shift[0..4].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[4..8].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[8..12].try_into().unwrap()),
+            u32::from_le_bytes(value_to_shift[12..16].try_into().unwrap()),
+        ];
+        let expected_output = [
+            u32::from_le_bytes(expected[0..4].try_into().unwrap()),
+            u32::from_le_bytes(expected[4..8].try_into().unwrap()),
+            u32::from_le_bytes(expected[8..12].try_into().unwrap()),
+            u32::from_le_bytes(expected[12..16].try_into().unwrap()),
+        ];
+        let res = shift_rows(input, &cs);
+        assert_eq!(res.unwrap(), expected_output);
+        assert!(cs.is_satisfied().unwrap());
+        // TODO: Uncomment this using simpleworks
+        // let (index_vk, proof) = crate::prover::prove(cs);
+        // let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed());
+        // assert!(crate::prover::MarlinInst::verify(&index_vk, &[], &proof, &mut rng).unwrap());
     }
 }
