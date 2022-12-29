@@ -49,6 +49,7 @@ use ark_relations::{
     lc,
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
+use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -59,10 +60,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub fn encrypt(
-    message: &[u8],
+    message: &[u8; 16],
     secret_key: &[u8; 16],
     proving_key: ProvingKey,
-) -> Result<(Vec<u8>, MarlinProof)> {
+) -> Result<([u8; 16], MarlinProof)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
@@ -97,8 +98,8 @@ pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
     let universal_srs = simpleworks::marlin::generate_universal_srs(rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let default_message_input = vec![];
-    let default_secret_key_input = vec![];
+    let default_message_input = [0_u8; 16];
+    let default_secret_key_input = [0_u8; 16];
 
     let _ciphertext = encrypt_and_generate_constraints(
         &constraint_system,
@@ -111,9 +112,9 @@ pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
 
 fn encrypt_and_generate_constraints(
     cs: &ConstraintSystemRef<ConstraintF>,
-    _message: &[u8],
+    message: &[u8; 16],
     secret_key: &[u8; 16],
-) -> Result<Vec<u8>> {
+) -> Result<[u8; 16]> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
         `cs`.
