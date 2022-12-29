@@ -44,11 +44,8 @@ pub mod ops;
 
 use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
-use ark_ff::BigInteger256;
-use ark_r1cs_std::prelude::Boolean;
 use ark_relations::{
-    lc,
-    r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
+    r1cs::{ConstraintSystem, ConstraintSystemRef},
 };
 use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
@@ -142,14 +139,6 @@ fn encrypt_and_generate_constraints(
 
         ciphertext.extend_from_slice(&after_add_round_key);
     }
-
-    let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
-
-    let b = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
-
-    let difference: LinearCombination<ConstraintF> = lc!() + a - b;
-    let true_variable = &Boolean::<ConstraintF>::TRUE;
-    cs.enforce_constraint(difference, true_variable.lc(), lc!())?;
 
     Ok(ciphertext)
 }
