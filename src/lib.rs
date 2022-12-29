@@ -119,7 +119,7 @@ fn encrypt_and_generate_constraints(
         Here we do the AES encryption, generating the constraints that get all added into
         `cs`.
     */
-    // @@@@@@@@@
+    
     let after_round_key = aes::add_round_key(message, secret_key);
     let after_substitute_bytes = aes::substitute_bytes(&after_round_key, cs)?;
     let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
