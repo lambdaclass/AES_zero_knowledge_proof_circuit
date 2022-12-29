@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let message = [1_u8; 16];
     let secret_key = [0_u8; 16];
     let primitive_secret_key = Aes128::new(GenericArray::from_slice(&secret_key));
-    let (proving_key, verifying_key) = synthesize_keys()?;
+    let (proving_key, verifying_key) = synthesize_keys(message.len())?;
 
     let (_ciphertext, proof) = encrypt(&message, &secret_key, proving_key)?;
     let _primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);

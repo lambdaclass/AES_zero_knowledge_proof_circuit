@@ -1,9 +1,9 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{Context, Result};
-use ark_ed_on_bls12_381::Fq;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint8::UInt8, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
+use simpleworks::gadgets::ConstraintF;
 use std::iter::zip;
 
 // Reference: https://www.gfuzz.de/AES_2.html
@@ -78,7 +78,7 @@ const SUBSTITUTION_TABLE: [[u8; 16]; 16] = [
 ];
 
 /// Performs the xor bit by bit between the `input_text` and the key
-pub fn add_round_key(input_text: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+pub fn add_round_key(input_text: &[u8], key: &[u8; 16]) -> [u8; 16] {
     let mut ret = [0_u8; 16];
 
     let _ = zip(input_text, key)
@@ -98,7 +98,10 @@ pub fn substitute_byte(byte: u8) -> Result<u8> {
         .to_anyhow("Error getting value of the substitution table")?)
 }
 
-pub fn substitute_bytes(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Result<[u8; 16]> {
+pub fn substitute_bytes(
+    bytes: &[u8; 16],
+    cs: &ConstraintSystemRef<ConstraintF>,
+) -> Result<[u8; 16]> {
     let num_witness =
         UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || {
             Ok(u128::from_le_bytes(*bytes))
@@ -114,7 +117,7 @@ pub fn substitute_bytes(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Resul
 
 // num is a 128 bit number, represented
 // as 4 u32 numbers.
-pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<Fq>) -> Result<[u8; 16]> {
+pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<ConstraintF>) -> Result<[u8; 16]> {
     // Add each number to the constrain system.
     for byte in bytes {
         UInt8::new_witness(ark_relations::ns!(cs, "shift_rows_witness"), || Ok(byte))?;
@@ -228,14 +231,14 @@ mod test {
         expected
             .iter_mut()
             .for_each(|e| *e = substitute_byte(*e).unwrap());
-        let cs = ConstraintSystem::<Fq>::new_ref();
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let result = substitute_bytes(&num, &cs).unwrap();
         assert_eq!(expected, result);
     }
     #[rustfmt::skip]
     #[test]
     fn test_shift() {
-        let cs = ConstraintSystem::<Fq>::new_ref();
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
         // Generate random 16 bytes, and then check
         // that the AES shifting works like expected.
         let value_to_shift: [u8; 16] = rand::random();

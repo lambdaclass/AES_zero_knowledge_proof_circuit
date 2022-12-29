@@ -51,6 +51,7 @@ use ark_relations::{
     r1cs::{ConstraintSystem, ConstraintSystemRef, LinearCombination},
 };
 use collect_slice::CollectSlice;
+use helpers::traits::ToAnyhow;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -75,7 +76,7 @@ const ROUND_CONSTANTS: [u32; 10] = [
 
 pub fn encrypt(
     message: &[u8],
-    secret_key: &[u8],
+    secret_key: &[u8; 16],
     proving_key: ProvingKey,
 ) -> Result<(Vec<u8>, MarlinProof)> {
     let rng = &mut simpleworks::marlin::generate_rand();
@@ -107,13 +108,13 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
     )
 }
 
-pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
+pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs = simpleworks::marlin::generate_universal_srs(rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let default_message_input = vec![];
-    let default_secret_key_input = vec![];
+    let default_message_input = vec![0_u8; plaintex_length];
+    let default_secret_key_input = [0_u8; 16];
 
     let _ciphertext = encrypt_and_generate_constraints(
         &constraint_system,
@@ -126,13 +127,35 @@ pub fn synthesize_keys() -> Result<(ProvingKey, VerifyingKey)> {
 
 fn encrypt_and_generate_constraints(
     cs: &ConstraintSystemRef<ConstraintF>,
-    _message: &[u8],
-    _secret_key: &[u8],
+    message: &[u8],
+    secret_key: &[u8; 16],
 ) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
         `cs`.
     */
+
+    let mut ciphertext: Vec<u8> = Vec::new();
+    let _round_keys = derive_keys(&secret_key);
+
+    // TODO: Make this in 10 rounds instead of 1.
+    // 1 round ECB
+    for block in message.chunks(16) {
+        // Step 0
+        let after_add_round_key = aes::add_round_key(block, secret_key);
+        // Step 1
+        let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
+        // Step 2
+        let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
+        // Step 3
+        let after_mix_columns = aes::mix_columns(&after_shift_rows)
+            .to_anyhow("Error mixing columns when encrypting")?;
+        // Step 4
+        // This ciphertext should represent the next round plaintext and use the round key.
+        let after_add_round_key = aes::add_round_key(&after_mix_columns, secret_key);
+
+        ciphertext.extend_from_slice(&after_add_round_key);
+    }
 
     let a = cs.new_witness_variable(|| Ok(ConstraintF::new(BigInteger256::new([1, 0, 0, 0]))))?;
 
@@ -142,7 +165,6 @@ fn encrypt_and_generate_constraints(
     let true_variable = &Boolean::<ConstraintF>::TRUE;
     cs.enforce_constraint(difference, true_variable.lc(), lc!())?;
 
-    let ciphertext = vec![];
     Ok(ciphertext)
 }
 
