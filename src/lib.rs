@@ -44,6 +44,8 @@ pub mod ops;
 
 use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
+use ark_r1cs_std::prelude::AllocVar;
+use simpleworks::gadgets::UInt8Gadget;
 use ark_relations::{
     r1cs::{ConstraintSystem, ConstraintSystemRef},
 };
@@ -65,7 +67,17 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let ciphertext = encrypt_and_generate_constraints(&constraint_system, message, secret_key)?;
+    let mut message_circuit : Vec<UInt8Gadget> = Vec::with_capacity(message.len());
+    for byte in message {
+        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || Ok(byte))?);
+    }
+
+    let mut secret_key_circuit : Vec<UInt8Gadget> = Vec::with_capacity(message.len());
+    for byte in secret_key {
+        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || Ok(byte))?);
+    }
+
+    let ciphertext = encrypt_and_generate_constraints(&constraint_system, &message_circuit, &secret_key_circuit)?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one
@@ -110,8 +122,8 @@ pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingK
 
 fn encrypt_and_generate_constraints(
     cs: &ConstraintSystemRef<ConstraintF>,
-    message: &[u8],
-    secret_key: &[u8; 16],
+    message: &[UInt8Gadget],
+    secret_key: &[UInt8Gadget],
 ) -> Result<Vec<u8>> {
     /*
         Here we do the AES encryption, generating the constraints that get all added into
@@ -119,7 +131,9 @@ fn encrypt_and_generate_constraints(
     */
 
     let mut ciphertext: Vec<u8> = Vec::new();
-    let _round_keys = aes::derive_keys(secret_key);
+    let _round_keys = aes::derive_keys(&secret_key);
+
+    
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
@@ -144,7 +158,7 @@ fn encrypt_and_generate_constraints(
 }
 
 fn substitute_word(input: &[u8; 4]) -> Result<[u8; 4]> {
-    let mut result = [0_u8; 4];
+    let mut result = [0u8; 4];
     result[0] = substitute_byte(input[0])?;
     result[1] = substitute_byte(input[1])?;
     result[2] = substitute_byte(input[2])?;
