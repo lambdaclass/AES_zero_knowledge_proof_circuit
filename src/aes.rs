@@ -183,10 +183,12 @@ fn gmix_column(input: &[u8; 4]) -> Option<[u8; 4]> {
      * in Rijndael's Galois field
      * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
+    /* arithmetic right shift, thus shifting in either zeros or ones */
+    /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+    /* Rijndael's Galois field */
     for (i, c) in input.iter().enumerate() {
-        let h = (c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
-        *b.get_mut(i)? = (c << 1_usize) ^ (h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
-        /* Rijndael's Galois field */
+        let h = (c >> 7_usize) & 1;
+        *b.get_mut(i)? = (c << 1_usize) ^ (h * 0x1B);
     }
 
     Some([

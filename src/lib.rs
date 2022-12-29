@@ -72,7 +72,7 @@ pub fn encrypt(
         message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || Ok(byte))?);
     }
 
-    let mut secret_key_circuit : Vec<UInt8Gadget> = Vec::with_capacity(message.len());
+    let mut secret_key_circuit : Vec<UInt8Gadget> = Vec::with_capacity(secret_key.len());
     for byte in secret_key {
         secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || Ok(byte))?);
     }
