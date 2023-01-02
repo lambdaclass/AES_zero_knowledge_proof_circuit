@@ -273,4 +273,29 @@ mod tests {
         );
         assert!(cs.is_satisfied().unwrap());
     }
+
+    #[test]
+    fn test_one_round_sub_bytes_circuit() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let value_to_substitute = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "value_to_mix"),
+            &[
+                0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b, 0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8,
+                0x48, 0x08,
+            ],
+        )
+        .unwrap();
+
+        let expected_primitive_substituted_value: [u8; 16] = [
+            0xd4, 0x27, 0x11, 0xae, 0xe0, 0xbf, 0x98, 0xf1, 0xb8, 0xb4, 0x5d, 0xe5, 0x1e, 0x41,
+            0x52, 0x30,
+        ];
+
+        let substituted_value = aes_circuit::substitute_bytes(&value_to_substitute).unwrap();
+
+        assert_eq!(
+            substituted_value.value().unwrap(),
+            expected_primitive_substituted_value
+        );
+    }
 }
