@@ -38,8 +38,95 @@ pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result
     Ok(output)
 }
 
+// TODO: Some operations are not generating constraints.
+fn rotate_left(byte: UInt8Gadget, n: u8) -> Result<UInt8Gadget> {
+    let cs = byte.cs();
+    let left_shifted = UInt8Gadget::new_witness(cs.clone(), || Ok(byte.value()? << n))?;
+    let right_shifted = UInt8Gadget::new_witness(cs, || Ok(byte.value()? >> (8 - n)))?;
+
+    let left_operand_bits = ark_r1cs_std::ToBitsGadget::to_bits_le(&left_shifted)?;
+    let right_operand_bits = ark_r1cs_std::ToBitsGadget::to_bits_le(&right_shifted)?;
+
+    let or_result = left_operand_bits
+        .iter()
+        .zip(right_operand_bits)
+        .map(|(left, right)| left.or(&right))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(UInt8Gadget::from_bits_le(&or_result))
+}
+
+// TODO: Some operations are not generating constraints.
+fn substitute_byte(byte: UInt8Gadget) -> Result<UInt8Gadget> {
+    let cs = byte.cs();
+
+    let mut p = UInt8Gadget::new_witness(cs.clone(), || Ok(1_u8))?;
+    let mut q = UInt8Gadget::new_witness(cs.clone(), || Ok(1_u8))?;
+    let mut sbox = UInt8Gadget::constant_vec(&[0_u8; 256]);
+
+    /* loop invariant: p * q == 1 in the Galois field */
+    loop {
+        /* multiply p by 3 */
+        let p_times_2 = UInt8Gadget::new_witness(cs.clone(), || Ok(p.value()? << 1_u8))?;
+        let adjustment =
+            UInt8Gadget::new_witness(cs.clone(), || Ok(((p.value()? >> 7_u8) & 1) * 0x1B))?;
+        p = p.xor(&p_times_2)?.xor(&adjustment)?;
+
+        /* divide q by 3 (equals multiplication by 0xf6) */
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 1_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 2_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 4_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(((q.value()? >> 7_u8) & 1) * 0x09)
+        })?)?;
+
+        /* compute the affine transformation */
+        let xformed = q
+            .xor(&rotate_left(q.clone(), 1)?)?
+            .xor(&rotate_left(q.clone(), 2)?)?
+            .xor(&rotate_left(q.clone(), 3)?)?
+            .xor(&rotate_left(q.clone(), 4)?)?;
+
+        let p_as_usize: usize = p.value()?.try_into()?;
+        *sbox
+            .get_mut(p_as_usize)
+            .to_anyhow("Error saving substitution box value")? =
+            xformed.xor(&UInt8Gadget::new_witness(cs.clone(), || Ok(0x63))?)?;
+
+        if p.value()? == 1 {
+            break;
+        }
+    }
+    *sbox
+        .get_mut(0)
+        .to_anyhow("Error getting the first element of the substitution box")? =
+        UInt8Gadget::new_witness(cs, || Ok(0x63_u8))?;
+
+    let byte_index: usize = byte.value()?.try_into()?;
+    Ok(sbox
+        .get(byte_index)
+        .to_anyhow("Error getting substitution box value")?
+        .clone())
+}
+
 pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
-    // TODO: implement this
+    ensure!(
+        bytes.len() == 16,
+        "Input must be 16 bytes length when substituting bytes"
+    );
+
+    let substituted_bytes = bytes
+        .iter()
+        .map(|byte| substitute_byte(byte.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    ensure!(substituted_bytes.len() == 16, "Error substituting bytes");
     Ok(bytes)
 }
 
