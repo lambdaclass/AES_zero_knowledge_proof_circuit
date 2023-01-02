@@ -116,7 +116,7 @@ fn substitute_byte(byte: UInt8Gadget) -> Result<UInt8Gadget> {
         .clone())
 }
 
-pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
+pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
     ensure!(
         bytes.len() == 16,
         "Input must be 16 bytes length when substituting bytes"
@@ -128,7 +128,7 @@ pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
         .collect::<Result<Vec<_>, _>>()?;
 
     ensure!(substituted_bytes.len() == 16, "Error substituting bytes");
-    Ok(bytes)
+    Ok(substituted_bytes)
 }
 
 pub fn shift_rows(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
@@ -217,7 +217,7 @@ mod tests {
     use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
 
     #[test]
-    fn test_add_round_key_circuit() {
+    fn test_one_round_add_round_key_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let plaintext = UInt8Gadget::new_witness_vec(
             ark_relations::ns!(cs, "plaintext"),
