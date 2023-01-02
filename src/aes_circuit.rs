@@ -1,16 +1,187 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{ensure, Result};
-use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
-use simpleworks::gadgets::UInt8Gadget;
+use ark_r1cs_std::{prelude::AllocVar, R1CSVar, ToBytesGadget};
+use simpleworks::gadgets::{UInt32Gadget, UInt8Gadget};
 
-pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<[&[UInt8Gadget]; 11]> {
-    // TODO: implement this
-    let ret = [
-        secret_key, secret_key, secret_key, secret_key, secret_key, secret_key, secret_key,
-        secret_key, secret_key, secret_key, secret_key,
+/// This function returns the derived keys from the secret key.
+/// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
+/// which we represent as 4 32-bit words, so we compute 44 32-bit elements
+/// W_0, W_1, ..., W_43. The first four constitute the first round key, the
+/// second four the second one, and so on.
+pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> {
+    // TODO: We should just pass around the constraint system explicitly instead of
+    // doing this everywhere.
+    let constraint_system = secret_key
+        .first()
+        .to_anyhow("Error getting the first byte of the secret key")?
+        .cs();
+
+    let ROUND_CONSTANTS: [UInt32Gadget; 10] = [
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x01, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x02, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x04, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x08, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x10, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x20, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x40, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x80, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
+        )?,
+        UInt32Gadget::new_constant(
+            constraint_system.clone(),
+            u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
+        )?,
     ];
 
+    let mut result: Vec<UInt32Gadget> = Vec::with_capacity(44);
+
+    result.push(to_u32(&secret_key[..4])?);
+    result.push(to_u32(&secret_key[4..8])?);
+    result.push(to_u32(&secret_key[8..12])?);
+    result.push(to_u32(&secret_key[12..16])?);
+
+    for i in 4..44 {
+        if i % 4 == 0 {
+            let substituted_and_rotated = to_u32(&substitute_word(&rotate_word(
+                result.get(i - 1).to_anyhow("Error converting to u32")?,
+            )?)?)?;
+
+            let mut res = (result
+                .get(i - 4)
+                .to_anyhow("Error getting elem")?
+                .xor(&substituted_and_rotated))?;
+            res = res.xor(
+                ROUND_CONSTANTS
+                    .get(i / 4 - 1)
+                    .to_anyhow("Error getting elem")?,
+            )?;
+
+            // *result.get_mut(i).to_anyhow("Error getting elem")? = res;
+            result.push(res);
+
+            // *result.get_mut(i).to_anyhow("Error getting elem")? =
+            //     (result.get(i - 4).to_anyhow("Error getting elem")? ^ (substituted_and_rotated))
+            //         ^ ROUND_CONSTANTS
+            //             .get(i / 4 - 1)
+            //             .to_anyhow("Error getting elem")?;
+        } else {
+            let res = result
+                .get(i - 4)
+                .to_anyhow("Error getting elem")?
+                .xor(result.get(i - 1).to_anyhow("Error getting elem")?)?;
+            result.push(res);
+            // *result.get_mut(i).to_anyhow("Error getting elem")? = result
+            //     .get(i - 4)
+            //     .to_anyhow("Error getting elem")?
+            //     .xor(result.get(i - 1).to_anyhow("Error getting elem")?)?;
+        }
+    }
+
+    // let mut ret = [[UInt8Gadget; 16]; 11];
+    let mut ret: Vec<Vec<UInt8Gadget>> = vec![];
+
+    for (i, elem) in result.chunks(4).enumerate() {
+        // This will have 16 entries, one for each byte
+        let mut round_key = vec![];
+        for u32_value in elem {
+            let bytes = u32_value.to_bytes()?;
+            for byte in bytes {
+                round_key.push(byte);
+            }
+        }
+        ret.push(round_key);
+
+        // elem.iter()
+        //     .flat_map(|e| to_bytes_be(*e).unwrap().as_slice())
+        //     .collect_slice(&mut ret.get_mut(i).to_anyhow("Error getting elem")?[..]);
+    }
+
     Ok(ret)
+}
+
+fn substitute_word(input: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
+    let mut result = vec![];
+    result.push(substitute_byte(&input[0])?);
+    result.push(substitute_byte(&input[1])?);
+    result.push(substitute_byte(&input[2])?);
+    result.push(substitute_byte(&input[3])?);
+
+    Ok(result)
+}
+
+fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
+    let value = input.value()?;
+    let bytes: [u8; 4] = value.to_be_bytes();
+    let constraint_system = input.cs();
+
+    let mut ret = vec![];
+    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        Ok(*bytes.get(1).unwrap_or(&0))
+    })?);
+    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        Ok(*bytes.get(2).unwrap_or(&0))
+    })?);
+    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        Ok(*bytes.get(3).unwrap_or(&0))
+    })?);
+    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        Ok(*bytes.first().unwrap_or(&0))
+    })?);
+
+    Ok(ret)
+}
+
+fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
+    let first_element = value
+        .first()
+        .to_anyhow("Error retrieving byte from UInt8 slice")?;
+
+    let constraint_system = first_element.cs();
+    let native_u32_value: [u8; 4] = [
+        first_element.value()?,
+        value
+            .get(1)
+            .to_anyhow("Error retrieving byte from UInt8 slice")?
+            .value()?,
+        value
+            .get(2)
+            .to_anyhow("Error retrieving byte from UInt8 slice")?
+            .value()?,
+        value
+            .get(3)
+            .to_anyhow("Error retrieving byte from UInt8 slice")?
+            .value()?,
+    ];
+
+    let value = u32::from_be_bytes(native_u32_value);
+
+    Ok(UInt32Gadget::new_witness(constraint_system, || Ok(value))?)
 }
 
 pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
@@ -395,5 +566,29 @@ mod tests {
             substituted_value.value().unwrap(),
             expected_primitive_substituted_value
         );
+    }
+
+    #[test]
+    fn key_expansion() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let secret_key = UInt8Gadget::new_witness_vec(
+            cs,
+            &[
+                0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                0x4f, 0x3c,
+            ],
+        )
+        .unwrap();
+        let result = aes_circuit::derive_keys(&secret_key).unwrap();
+
+        assert_eq!(
+            result[10].value().unwrap(),
+            [
+                0xd0, 0x14, 0xf9, 0xa8, 0xc9, 0xee, 0x25, 0x89, 0xe1, 0x3f, 0x0c, 0xc8, 0xb6, 0x63,
+                0x0c, 0xa6,
+            ]
+        );
+
+        println!("{result:x?}");
     }
 }
