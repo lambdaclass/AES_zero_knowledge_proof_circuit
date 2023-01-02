@@ -248,6 +248,80 @@ pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
     Some(ret)
 }
 
+fn gmix_column_c(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
+    let mut b: Vec<UInt8Gadget> = Vec::new();
+
+    // TODO: Generate constraints for bit shifting.
+    for c in input.iter() {
+        let cs = c.cs();
+
+        let primitive_c = c.value().ok()?;
+        let primitive_h = (primitive_c >> 7_usize) & 1; // arithmetic right shift, thus shifting in either zeros or ones.
+        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); // implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line.
+
+        b.push(UInt8Gadget::new_witness(cs, || Ok(primitive_b_byte)).ok()?);
+    }
+
+    Some([
+        b.first()?
+            .xor(input.get(3)?)
+            .ok()?
+            .xor(input.get(2)?)
+            .ok()?
+            .xor(b.get(1)?)
+            .ok()?
+            .xor(input.get(1)?)
+            .ok()?,
+        b.get(1)?
+            .xor(input.first()?)
+            .ok()?
+            .xor(input.get(3)?)
+            .ok()?
+            .xor(b.get(2)?)
+            .ok()?
+            .xor(input.get(2)?)
+            .ok()?,
+        b.get(2)?
+            .xor(input.get(1)?)
+            .ok()?
+            .xor(input.first()?)
+            .ok()?
+            .xor(b.get(3)?)
+            .ok()?
+            .xor(input.get(3)?)
+            .ok()?,
+        b.get(3)?
+            .xor(input.get(2)?)
+            .ok()?
+            .xor(input.get(1)?)
+            .ok()?
+            .xor(b.first()?)
+            .ok()?
+            .xor(input.first()?)
+            .ok()?,
+    ])
+}
+
+pub fn mix_columns_c(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+    let mut mixed_input = UInt8Gadget::constant_vec(&[0_u8; 16]);
+    for (i, column) in input.chunks(4).enumerate() {
+        let column_aux = [
+            column.first()?.clone(),
+            column.get(1)?.clone(),
+            column.get(2)?.clone(),
+            column.get(3)?.clone(),
+        ];
+        let column_ret = gmix_column_c(&column_aux)?;
+
+        *mixed_input.get_mut(i * 4)? = column_ret.first()?.clone();
+        *mixed_input.get_mut(i * 4 + 1)? = column_ret.get(1)?.clone();
+        *mixed_input.get_mut(i * 4 + 2)? = column_ret.get(2)?.clone();
+        *mixed_input.get_mut(i * 4 + 3)? = column_ret.get(3)?.clone();
+    }
+
+    Some(mixed_input)
+}
+
 /// This function returns the derived keys from the secret key.
 /// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
 /// which we represent as 4 32-bit words, so we compute 44 32-bit elements
@@ -422,7 +496,7 @@ mod test {
     fn test_add_round_key_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let plaintext = UInt8Gadget::new_witness_vec(
-            ark_relations::ns!(cs, "parameters"),
+            ark_relations::ns!(cs, "plaintext"),
             &[
                 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
                 0x07, 0x34,
@@ -430,7 +504,7 @@ mod test {
         )
         .unwrap();
         let secret_key = UInt8Gadget::new_witness_vec(
-            ark_relations::ns!(cs, "parameters"),
+            ark_relations::ns!(cs, "secret_key"),
             &[
                 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
                 0x4f, 0x3c,
@@ -447,6 +521,31 @@ mod test {
         assert_eq!(
             after_add_round_key.value().unwrap(),
             expected_primitive_result
+        );
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn test_one_round_column_mix_circuit() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let value_to_mix = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "value_to_mix"),
+            &[
+                0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
+                0x98, 0xe5,
+            ],
+        )
+        .unwrap();
+        let expected_primitive_mixed_value: [u8; 16] = [
+            0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
+            0x26, 0x4c,
+        ];
+
+        let mixed_column_vector = mix_columns_c(&value_to_mix).unwrap();
+
+        assert_eq!(
+            mixed_column_vector.value().unwrap(),
+            expected_primitive_mixed_value
         );
         assert!(cs.is_satisfied().unwrap());
     }
