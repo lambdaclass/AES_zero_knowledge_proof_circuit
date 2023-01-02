@@ -254,7 +254,7 @@ mod tests {
         // Generate random 16 bytes, and then check
         // that the AES shifting works like expected.
         let mut value_to_shift = vec![];
-        for _i in 0..16 {
+        for _i in 0_i32..16_i32 {
             value_to_shift
                 .push(UInt8Gadget::new_witness(cs.clone(), || Ok(rand::random::<u8>())).unwrap());
         }
@@ -280,7 +280,7 @@ mod tests {
 
         let res = aes_circuit::shift_rows(&value_to_shift);
         for (index, byte) in res.unwrap().iter().enumerate() {
-            assert_eq!(byte.value(), expected[index].value());
+            assert_eq!(byte.value(), expected.get(index).unwrap().value());
         }
         assert!(cs.is_satisfied().unwrap());
     }
