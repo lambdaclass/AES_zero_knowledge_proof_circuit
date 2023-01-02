@@ -131,9 +131,70 @@ pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
     Ok(substituted_bytes)
 }
 
-pub fn shift_rows(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
-    // TODO: implement this
-    Ok(bytes)
+pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+    // Turn the bytes into the 4x4 AES state matrix.
+    // The matrix is represented by a 2D array,
+    // where each array is a row.
+    // That is, let's suppose that the flattened_bytes variable
+    // is formed by the bytes
+    // [b0, ..., b15]
+    // Then the AES state matrix will look like this:
+    // b0, b4, b8, b12,
+    // b1, b5, b9, b13,
+    // b2, b6, b10, b14,
+    // b3, b7, b11, b15
+    // We shift each row, then return back the result as the flattened version.
+
+    let first_row = [
+        bytes.get(0)?.clone(),
+        bytes.get(4)?.clone(),
+        bytes.get(8)?.clone(),
+        bytes.get(12)?.clone(),
+    ];
+    let mut second_row = [
+        bytes.get(1)?.clone(),
+        bytes.get(5)?.clone(),
+        bytes.get(9)?.clone(),
+        bytes.get(13)?.clone(),
+    ];
+    let mut third_row = [
+        bytes.get(2)?.clone(),
+        bytes.get(6)?.clone(),
+        bytes.get(10)?.clone(),
+        bytes.get(14)?.clone(),
+    ];
+    let mut fourth_row = [
+        bytes.get(3)?.clone(),
+        bytes.get(7)?.clone(),
+        bytes.get(11)?.clone(),
+        bytes.get(15)?.clone(),
+    ];
+
+    // TODO: this does not generate constraints, fix it.
+    second_row.rotate_left(1);
+    third_row.rotate_left(2);
+    fourth_row.rotate_left(3);
+
+    let result = vec![
+        first_row.get(0)?.clone(),
+        second_row.get(0)?.clone(),
+        third_row.get(0)?.clone(),
+        fourth_row.get(0)?.clone(),
+        first_row.get(1)?.clone(),
+        second_row.get(1)?.clone(),
+        third_row.get(1)?.clone(),
+        fourth_row.get(1)?.clone(),
+        first_row.get(2)?.clone(),
+        second_row.get(2)?.clone(),
+        third_row.get(2)?.clone(),
+        fourth_row.get(2)?.clone(),
+        first_row.get(3)?.clone(),
+        second_row.get(3)?.clone(),
+        third_row.get(3)?.clone(),
+        fourth_row.get(3)?.clone(),
+    ];
+
+    Some(result)
 }
 
 pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
@@ -212,7 +273,7 @@ fn gmix_column(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
 #[cfg(test)]
 mod tests {
     use crate::aes_circuit;
-    use ark_r1cs_std::R1CSVar;
+    use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
 
@@ -271,6 +332,43 @@ mod tests {
             mixed_column_vector.value().unwrap(),
             expected_primitive_mixed_value
         );
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn test_shift_rows() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        // Generate random 16 bytes, and then check
+        // that the AES shifting works like expected.
+        let mut value_to_shift = vec![];
+        for _i in 0_i32..16_i32 {
+            value_to_shift
+                .push(UInt8Gadget::new_witness(cs.clone(), || Ok(rand::random::<u8>())).unwrap());
+        }
+
+        let expected: Vec<&UInt8Gadget> = vec![
+            value_to_shift.get(0).unwrap(),
+            value_to_shift.get(5).unwrap(),
+            value_to_shift.get(10).unwrap(),
+            value_to_shift.get(15).unwrap(),
+            value_to_shift.get(4).unwrap(),
+            value_to_shift.get(9).unwrap(),
+            value_to_shift.get(14).unwrap(),
+            value_to_shift.get(3).unwrap(),
+            value_to_shift.get(8).unwrap(),
+            value_to_shift.get(13).unwrap(),
+            value_to_shift.get(2).unwrap(),
+            value_to_shift.get(7).unwrap(),
+            value_to_shift.get(12).unwrap(),
+            value_to_shift.get(1).unwrap(),
+            value_to_shift.get(6).unwrap(),
+            value_to_shift.get(11).unwrap(),
+        ];
+
+        let res = aes_circuit::shift_rows(&value_to_shift);
+        for (index, byte) in res.unwrap().iter().enumerate() {
+            assert_eq!(byte.value(), expected.get(index).unwrap().value());
+        }
         assert!(cs.is_satisfied().unwrap());
     }
 
