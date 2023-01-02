@@ -40,7 +40,7 @@ pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result
 }
 
 // TODO: Some operations are not generating constraints.
-fn rotate_left(byte: UInt8Gadget, n: u8) -> Result<UInt8Gadget> {
+fn rotate_left(byte: &UInt8Gadget, n: u8) -> Result<UInt8Gadget> {
     let cs = byte.cs();
     let left_shifted = UInt8Gadget::new_witness(cs.clone(), || Ok(byte.value()? << n))?;
     let right_shifted = UInt8Gadget::new_witness(cs, || Ok(byte.value()? >> (8 - n)))?;
@@ -58,7 +58,7 @@ fn rotate_left(byte: UInt8Gadget, n: u8) -> Result<UInt8Gadget> {
 }
 
 // TODO: Some operations are not generating constraints.
-fn substitute_byte(byte: UInt8Gadget) -> Result<UInt8Gadget> {
+fn substitute_byte(byte: &UInt8Gadget) -> Result<UInt8Gadget> {
     let cs = byte.cs();
 
     let mut p = UInt8Gadget::new_witness(cs.clone(), || Ok(1_u8))?;
@@ -89,10 +89,10 @@ fn substitute_byte(byte: UInt8Gadget) -> Result<UInt8Gadget> {
 
         /* compute the affine transformation */
         let xformed = q
-            .xor(&rotate_left(q.clone(), 1)?)?
-            .xor(&rotate_left(q.clone(), 2)?)?
-            .xor(&rotate_left(q.clone(), 3)?)?
-            .xor(&rotate_left(q.clone(), 4)?)?;
+            .xor(&rotate_left(&q, 1)?)?
+            .xor(&rotate_left(&q, 2)?)?
+            .xor(&rotate_left(&q, 3)?)?
+            .xor(&rotate_left(&q, 4)?)?;
 
         let p_as_usize: usize = p.value()?.try_into()?;
         *sbox
@@ -124,7 +124,7 @@ pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
 
     let substituted_bytes = bytes
         .iter()
-        .map(|byte| substitute_byte(byte.clone()))
+        .map(substitute_byte)
         .collect::<Result<Vec<_>, _>>()?;
 
     ensure!(substituted_bytes.len() == 16, "Error substituting bytes");

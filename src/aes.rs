@@ -169,7 +169,7 @@ pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<ConstraintF>) -> Re
     Ok(flattened_matrix)
 }
 
-fn gmix_column(input: &[u8; 4]) -> Option<[u8; 4]> {
+fn gmix_column(input: [u8; 4]) -> Option<[u8; 4]> {
     let mut b: [u8; 4] = [0; 4];
     /* The array 'a' is simply a copy of the input array 'r'
      * The array 'b' is each element of the array 'a' multiplied by 2
@@ -200,7 +200,7 @@ pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
             *column.get(2)?,
             *column.get(3)?,
         ];
-        let column_ret = gmix_column(&column_aux)?;
+        let column_ret = gmix_column(column_aux)?;
 
         // put column_ret in ret:
         *ret.get_mut(pos * 4)? = *column_ret.first()?;
@@ -314,7 +314,7 @@ pub fn derive_keys(secret_key: &[u8; 16]) -> Result<[[u8; 16]; 11]> {
 
     for i in 4..44 {
         if i % 4 == 0 {
-            let substituted_and_rotated = to_u32(&crate::substitute_word(&rotate_word(
+            let substituted_and_rotated = to_u32(&crate::substitute_word(rotate_word(
                 *result.get(i - 1).to_anyhow("Error converting to u32")?,
             ))?)
             .to_anyhow("Error converting to u32")?;
@@ -404,15 +404,15 @@ mod test {
     #[test]
     fn test_gcolumn_mix() {
         let input: [u8; 4] = [0xdb, 0x13, 0x53, 0x45];
-        let ret = gmix_column(&input);
+        let ret = gmix_column(input);
         println!("{ret:?}");
 
         let input2: [u8; 4] = [0xd4, 0xbf, 0x5d, 0x30];
-        let ret2 = gmix_column(&input2);
+        let ret2 = gmix_column(input2);
         println!("{ret2:?}");
 
         let input3: [u8; 4] = [0xe0, 0xb4, 0x52, 0xae];
-        let ret3 = gmix_column(&input3);
+        let ret3 = gmix_column(input3);
         println!("{ret3:?}");
     }
 
