@@ -152,8 +152,8 @@ fn encrypt_and_generate_constraints(
             // Step 1
             let after_substitute_bytes = aes_circuit::substitute_bytes(&after_add_round_key)?;
             // Step 2
-            let after_shift_rows =
-                aes_circuit::shift_rows(after_substitute_bytes).to_anyhow("Error shifting rows")?;
+            let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes)
+                .to_anyhow("Error shifting rows")?;
             // Step 3
             // TODO: This mix columns operation is being done on the last round, but it's not taken into
             // account. To increase performance we could move this inside the if statement below.
@@ -189,7 +189,7 @@ fn encrypt_and_generate_constraints(
     Ok(ciphertext)
 }
 
-fn substitute_word(input: &[u8; 4]) -> Result<[u8; 4]> {
+fn substitute_word(input: [u8; 4]) -> Result<[u8; 4]> {
     let mut result = [0_u8; 4];
     result[0] = substitute_byte(input[0])?;
     result[1] = substitute_byte(input[1])?;
