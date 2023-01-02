@@ -39,9 +39,96 @@ pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result
     Ok(output)
 }
 
-pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
-    // TODO: implement this
-    Ok(bytes)
+// TODO: Some operations are not generating constraints.
+fn rotate_left(byte: &UInt8Gadget, n: u8) -> Result<UInt8Gadget> {
+    let cs = byte.cs();
+    let left_shifted = UInt8Gadget::new_witness(cs.clone(), || Ok(byte.value()? << n))?;
+    let right_shifted = UInt8Gadget::new_witness(cs, || Ok(byte.value()? >> (8 - n)))?;
+
+    let left_operand_bits = ark_r1cs_std::ToBitsGadget::to_bits_le(&left_shifted)?;
+    let right_operand_bits = ark_r1cs_std::ToBitsGadget::to_bits_le(&right_shifted)?;
+
+    let or_result = left_operand_bits
+        .iter()
+        .zip(right_operand_bits)
+        .map(|(left, right)| left.or(&right))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(UInt8Gadget::from_bits_le(&or_result))
+}
+
+// TODO: Some operations are not generating constraints.
+fn substitute_byte(byte: &UInt8Gadget) -> Result<UInt8Gadget> {
+    let cs = byte.cs();
+
+    let mut p = UInt8Gadget::new_witness(cs.clone(), || Ok(1_u8))?;
+    let mut q = UInt8Gadget::new_witness(cs.clone(), || Ok(1_u8))?;
+    let mut sbox = UInt8Gadget::constant_vec(&[0_u8; 256]);
+
+    /* loop invariant: p * q == 1 in the Galois field */
+    loop {
+        /* multiply p by 3 */
+        let p_times_2 = UInt8Gadget::new_witness(cs.clone(), || Ok(p.value()? << 1_u8))?;
+        let adjustment =
+            UInt8Gadget::new_witness(cs.clone(), || Ok(((p.value()? >> 7_u8) & 1) * 0x1B))?;
+        p = p.xor(&p_times_2)?.xor(&adjustment)?;
+
+        /* divide q by 3 (equals multiplication by 0xf6) */
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 1_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 2_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(q.value()? << 4_u8)
+        })?)?;
+        q = q.xor(&UInt8Gadget::new_witness(cs.clone(), || {
+            Ok(((q.value()? >> 7_u8) & 1) * 0x09)
+        })?)?;
+
+        /* compute the affine transformation */
+        let xformed = q
+            .xor(&rotate_left(&q, 1)?)?
+            .xor(&rotate_left(&q, 2)?)?
+            .xor(&rotate_left(&q, 3)?)?
+            .xor(&rotate_left(&q, 4)?)?;
+
+        let p_as_usize: usize = p.value()?.try_into()?;
+        *sbox
+            .get_mut(p_as_usize)
+            .to_anyhow("Error saving substitution box value")? =
+            xformed.xor(&UInt8Gadget::new_witness(cs.clone(), || Ok(0x63))?)?;
+
+        if p.value()? == 1 {
+            break;
+        }
+    }
+    *sbox
+        .get_mut(0)
+        .to_anyhow("Error getting the first element of the substitution box")? =
+        UInt8Gadget::new_witness(cs, || Ok(0x63_u8))?;
+
+    let byte_index: usize = byte.value()?.try_into()?;
+    Ok(sbox
+        .get(byte_index)
+        .to_anyhow("Error getting substitution box value")?
+        .clone())
+}
+
+pub fn substitute_bytes(bytes: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
+    ensure!(
+        bytes.len() == 16,
+        "Input must be 16 bytes length when substituting bytes"
+    );
+
+    let substituted_bytes = bytes
+        .iter()
+        .map(substitute_byte)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    ensure!(substituted_bytes.len() == 16, "Error substituting bytes");
+    Ok(substituted_bytes)
 }
 
 pub fn shift_rows(bytes: &[UInt8Gadget]) -> Result<&[UInt8Gadget]> {
@@ -130,7 +217,7 @@ mod tests {
     use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
 
     #[test]
-    fn test_add_round_key_circuit() {
+    fn test_one_round_add_round_key_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let plaintext = UInt8Gadget::new_witness_vec(
             ark_relations::ns!(cs, "plaintext"),
@@ -185,5 +272,30 @@ mod tests {
             expected_primitive_mixed_value
         );
         assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn test_one_round_sub_bytes_circuit() {
+        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let value_to_substitute = UInt8Gadget::new_witness_vec(
+            ark_relations::ns!(cs, "value_to_mix"),
+            &[
+                0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b, 0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8,
+                0x48, 0x08,
+            ],
+        )
+        .unwrap();
+
+        let expected_primitive_substituted_value: [u8; 16] = [
+            0xd4, 0x27, 0x11, 0xae, 0xe0, 0xbf, 0x98, 0xf1, 0xb8, 0xb4, 0x5d, 0xe5, 0x1e, 0x41,
+            0x52, 0x30,
+        ];
+
+        let substituted_value = aes_circuit::substitute_bytes(&value_to_substitute).unwrap();
+
+        assert_eq!(
+            substituted_value.value().unwrap(),
+            expected_primitive_substituted_value
+        );
     }
 }
