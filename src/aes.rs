@@ -250,21 +250,16 @@ pub fn mix_columns(input: &[u8; 16]) -> Option<[u8; 16]> {
 
 fn gmix_column_c(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
     let mut b: Vec<UInt8Gadget> = Vec::new();
-    /* The array 'a' is simply a copy of the input array 'r'
-     * The array 'b' is each element of the array 'a' multiplied by 2
-     * in Rijndael's Galois field
-     * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
     // TODO: Generate constraints for bit shifting.
     for c in input.iter() {
         let cs = c.cs();
 
         let primitive_c = c.value().ok()?;
-        let primitive_h = (primitive_c >> 7_usize) & 1; /* arithmetic right shift, thus shifting in either zeros or ones */
-        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+        let primitive_h = (primitive_c >> 7_usize) & 1; // arithmetic right shift, thus shifting in either zeros or ones.
+        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); // implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line.
 
         b.push(UInt8Gadget::new_witness(cs, || Ok(primitive_b_byte)).ok()?);
-        /* Rijndael's Galois field */
     }
 
     Some([
