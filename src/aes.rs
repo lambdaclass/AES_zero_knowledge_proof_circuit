@@ -1,9 +1,9 @@
 use crate::helpers::traits::ToAnyhow;
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result};
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint8::UInt8, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
-use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
+use simpleworks::gadgets::ConstraintF;
 use std::iter::zip;
 
 // Reference: https://www.gfuzz.de/AES_2.html
