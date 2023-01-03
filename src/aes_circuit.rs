@@ -111,7 +111,7 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
     for elem in result.chunks_mut(4) {
         let mut round_key = vec![];
         for u32_value in elem {
-            let bytes = to_bytes_be(u32_value)?;
+            let bytes = to_bytes_be(u32_value);
             for byte in bytes {
                 round_key.push(byte);
             }
@@ -176,17 +176,17 @@ fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
 }
 
 // It's either this or forking `r1cs-std`.
-fn to_bytes_be(input: &mut UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
+fn to_bytes_be(input: &mut UInt32Gadget) -> Vec<UInt8Gadget> {
     let mut bits = input.to_bits_le();
     bits.reverse();
 
-    Ok(bits
+    bits
         .chunks_mut(8)
         .map(|chunk| {
             chunk.reverse();
             UInt8Gadget::from_bits_le(chunk)
         })
-        .collect())
+        .collect()
 }
 
 fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
