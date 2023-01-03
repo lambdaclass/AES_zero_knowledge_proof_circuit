@@ -1,6 +1,6 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{ensure, Result};
-use ark_r1cs_std::{prelude::AllocVar, R1CSVar, ToBytesGadget};
+use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
 use simpleworks::gadgets::{UInt32Gadget, UInt8Gadget};
 
 /// This function returns the derived keys from the secret key.
@@ -16,7 +16,7 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
         .to_anyhow("Error getting the first byte of the secret key")?
         .cs();
 
-    let ROUND_CONSTANTS: [UInt32Gadget; 10] = [
+    let round_constants: [UInt32Gadget; 10] = [
         UInt32Gadget::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x01, 0x00, 0x00, 0x00]),
@@ -54,7 +54,7 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
             u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
         )?,
         UInt32Gadget::new_constant(
-            constraint_system.clone(),
+            constraint_system,
             u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
         )?,
     ];
@@ -76,50 +76,35 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
                 .get(i - 4)
                 .to_anyhow("Error getting elem")?
                 .xor(&substituted_and_rotated))?;
+
             res = res.xor(
-                ROUND_CONSTANTS
+                round_constants
                     .get(i / 4 - 1)
                     .to_anyhow("Error getting elem")?,
             )?;
 
-            // *result.get_mut(i).to_anyhow("Error getting elem")? = res;
             result.push(res);
-
-            // *result.get_mut(i).to_anyhow("Error getting elem")? =
-            //     (result.get(i - 4).to_anyhow("Error getting elem")? ^ (substituted_and_rotated))
-            //         ^ ROUND_CONSTANTS
-            //             .get(i / 4 - 1)
-            //             .to_anyhow("Error getting elem")?;
         } else {
             let res = result
                 .get(i - 4)
                 .to_anyhow("Error getting elem")?
                 .xor(result.get(i - 1).to_anyhow("Error getting elem")?)?;
+
             result.push(res);
-            // *result.get_mut(i).to_anyhow("Error getting elem")? = result
-            //     .get(i - 4)
-            //     .to_anyhow("Error getting elem")?
-            //     .xor(result.get(i - 1).to_anyhow("Error getting elem")?)?;
         }
     }
 
-    // let mut ret = [[UInt8Gadget; 16]; 11];
     let mut ret: Vec<Vec<UInt8Gadget>> = vec![];
 
-    for (i, elem) in result.chunks(4).enumerate() {
-        // This will have 16 entries, one for each byte
+    for elem in result.chunks_mut(4) {
         let mut round_key = vec![];
         for u32_value in elem {
-            let bytes = u32_value.to_bytes()?;
+            let bytes = to_bytes_be(u32_value)?;
             for byte in bytes {
                 round_key.push(byte);
             }
         }
         ret.push(round_key);
-
-        // elem.iter()
-        //     .flat_map(|e| to_bytes_be(*e).unwrap().as_slice())
-        //     .collect_slice(&mut ret.get_mut(i).to_anyhow("Error getting elem")?[..]);
     }
 
     Ok(ret)
@@ -155,6 +140,20 @@ fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
     })?);
 
     Ok(ret)
+}
+
+// It's either this or forking `r1cs-std`.
+fn to_bytes_be(input: &mut UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
+    let mut bits = input.to_bits_le();
+    bits.reverse();
+
+    Ok(bits
+        .chunks_mut(8)
+        .map(|chunk| {
+            chunk.reverse();
+            UInt8Gadget::from_bits_le(chunk)
+        })
+        .collect())
 }
 
 fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
@@ -588,7 +587,5 @@ mod tests {
                 0x0c, 0xa6,
             ]
         );
-
-        println!("{result:x?}");
     }
 }

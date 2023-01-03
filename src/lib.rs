@@ -43,7 +43,6 @@ pub mod aes_circuit;
 pub mod helpers;
 pub mod ops;
 
-use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
 use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
@@ -188,14 +187,4 @@ fn encrypt_and_generate_constraints(
     }
 
     Ok(ciphertext)
-}
-
-fn substitute_word(input: [u8; 4]) -> Result<[u8; 4]> {
-    let mut result = [0_u8; 4];
-    result[0] = substitute_byte(input[0])?;
-    result[1] = substitute_byte(input[1])?;
-    result[2] = substitute_byte(input[2])?;
-    result[3] = substitute_byte(input[3])?;
-
-    Ok(result)
 }
