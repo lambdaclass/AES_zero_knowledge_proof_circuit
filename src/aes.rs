@@ -56,7 +56,6 @@ pub fn substitute_byte(byte: u8) -> Result<u8> {
 
     let byte_index: usize = byte.try_into()?;
 
-    println!("{byte_index}");
     Ok(*sbox
         .get(byte_index)
         .to_anyhow("Error getting substitution box value")?)
