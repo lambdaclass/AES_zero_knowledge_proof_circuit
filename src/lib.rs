@@ -39,13 +39,15 @@
 )]
 
 pub mod aes;
+pub mod aes_circuit;
 pub mod helpers;
 pub mod ops;
 
-use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
+use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
+use simpleworks::gadgets::UInt8Gadget;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -63,7 +65,21 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let ciphertext = encrypt_and_generate_constraints(&constraint_system, message, secret_key)?;
+    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(message.len());
+    for byte in message {
+        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let mut secret_key_circuit: Vec<UInt8Gadget> = Vec::with_capacity(secret_key.len());
+    for byte in secret_key {
+        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let ciphertext = encrypt_and_generate_constraints(&message_circuit, &secret_key_circuit)?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one
@@ -91,79 +107,84 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
 
 pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
-    let universal_srs = simpleworks::marlin::generate_universal_srs(rng)?;
+    let universal_srs =
+        simpleworks::marlin::generate_universal_srs(10_000_000, 2_500_000, 30_000_000, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
     let default_message_input = vec![0_u8; plaintex_length];
     let default_secret_key_input = [0_u8; 16];
 
-    let _ciphertext = encrypt_and_generate_constraints(
-        &constraint_system,
-        &default_message_input,
-        &default_secret_key_input,
-    );
+    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(default_message_input.len());
+    for byte in default_message_input {
+        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let mut secret_key_circuit: Vec<UInt8Gadget> =
+        Vec::with_capacity(default_secret_key_input.len());
+    for byte in default_secret_key_input {
+        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let _ciphertext = encrypt_and_generate_constraints(&message_circuit, &secret_key_circuit);
 
     simpleworks::marlin::generate_proving_and_verifying_keys(&universal_srs, constraint_system)
 }
 
 fn encrypt_and_generate_constraints(
-    cs: &ConstraintSystemRef<ConstraintF>,
-    message: &[u8],
-    secret_key: &[u8; 16],
+    message: &[UInt8Gadget],
+    secret_key: &[UInt8Gadget],
 ) -> Result<Vec<u8>> {
-    /*
-        Here we do the AES encryption, generating the constraints that get all added into
-        `cs`.
-    */
-
     let mut ciphertext: Vec<u8> = Vec::new();
-    let round_keys = aes::derive_keys(secret_key)?;
+    let round_keys = aes_circuit::derive_keys(secret_key)?;
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
     for block in message.chunks(16) {
         // Step 0
-        let mut after_add_round_key = aes::add_round_key(block, secret_key);
+        let mut after_add_round_key = aes_circuit::add_round_key(block, secret_key)?;
         // Starting at 1 will skip the first round key which is the same as
         // the secret key.
         for round in 1_usize..=10_usize {
             // Step 1
-            let after_substitute_bytes = aes::substitute_bytes(&after_add_round_key, cs)?;
+            let after_substitute_bytes = aes_circuit::substitute_bytes(&after_add_round_key)?;
             // Step 2
-            let after_shift_rows = aes::shift_rows(&after_substitute_bytes, cs)?;
+            let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes)
+                .to_anyhow("Error shifting rows")?;
             // Step 3
-            let after_mix_columns = aes::mix_columns(&after_shift_rows)
+            // TODO: This mix columns operation is being done on the last round, but it's not taken into
+            // account. To increase performance we could move this inside the if statement below.
+            let after_mix_columns = aes_circuit::mix_columns(&after_shift_rows)
                 .to_anyhow("Error mixing columns when encrypting")?;
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
             if round < 10_usize {
-                after_add_round_key = aes::add_round_key(
+                after_add_round_key = aes_circuit::add_round_key(
                     &after_mix_columns,
                     round_keys
                         .get(round)
                         .to_anyhow(&format!("Error getting round key in round {round}"))?,
-                );
+                )?;
             } else {
-                after_add_round_key = aes::add_round_key(
+                after_add_round_key = aes_circuit::add_round_key(
                     &after_shift_rows,
                     round_keys
                         .get(round)
                         .to_anyhow(&format!("Error getting round key in round {round}"))?,
-                );
+                )?;
             }
         }
-        ciphertext.extend_from_slice(&after_add_round_key);
+        let mut ciphertext_chunk = vec![];
+
+        for u8_gadget in after_add_round_key {
+            ciphertext_chunk.push(u8_gadget.value()?);
+        }
+
+        ciphertext.extend_from_slice(&ciphertext_chunk);
     }
 
     Ok(ciphertext)
-}
-
-fn substitute_word(input: &[u8; 4]) -> Result<[u8; 4]> {
-    let mut result = [0_u8; 4];
-    result[0] = substitute_byte(input[0])?;
-    result[1] = substitute_byte(input[1])?;
-    result[2] = substitute_byte(input[2])?;
-    result[3] = substitute_byte(input[3])?;
-
-    Ok(result)
 }

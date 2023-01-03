@@ -23,7 +23,7 @@ ark-r1cs-std = { version = "^0.3.0", default-features = false }
 ark-snark = { version = "^0.3.0", default-features = false }
 ark-serialize = { version = "^0.3.0", default-features = false }
 ark-crypto-primitives = { version = "^0.3.0", default-features = true, features = [ "r1cs" ] }
-simpleworks = {git = "https://github.com/Entropy1729/simpleworks"}
+simpleworks = {git = "https://github.com/Lambdaclass/simpleworks"}
 digest = { version = "0.9", default-features = false }
 rand_chacha = {version = "0.3.1"}
 anyhow = "1.0"
