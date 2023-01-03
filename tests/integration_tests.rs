@@ -310,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
+    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_encrypt_a_16_bytes_plaintext() {
         let plaintext: [u8; 16] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
+    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_one_round_aes_encryption_of_a_64_bytes_plaintext() {
         let plaintext: [u8; 64] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
