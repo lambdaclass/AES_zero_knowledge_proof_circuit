@@ -180,8 +180,7 @@ fn to_bytes_be(input: &mut UInt32Gadget) -> Vec<UInt8Gadget> {
     let mut bits = input.to_bits_le();
     bits.reverse();
 
-    bits
-        .chunks_mut(8)
+    bits.chunks_mut(8)
         .map(|chunk| {
             chunk.reverse();
             UInt8Gadget::from_bits_le(chunk)
