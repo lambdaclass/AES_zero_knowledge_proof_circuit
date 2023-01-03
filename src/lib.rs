@@ -108,7 +108,7 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
 pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs =
-        simpleworks::marlin::generate_universal_srs(10000000, 2500000, 30000000, rng)?;
+        simpleworks::marlin::generate_universal_srs(10_000_000, 2_500_000, 30_000_000, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
     let default_message_input = vec![0_u8; plaintex_length];
