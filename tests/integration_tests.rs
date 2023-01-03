@@ -39,7 +39,6 @@ mod tests {
         } else {
             after_shift_rows
         };
-
         let start_of_next_round = add_round_key(&after_mix_columns, round_key);
         assert_eq!(
             start_of_next_round, expected_start_of_next_round,
@@ -283,7 +282,6 @@ mod tests {
             "Start of round is incorrect"
         );
 
-        // TODO: This should be a 10 iterations loop.
         for i in 0..10 {
             let round = i + 1;
             println!("Start of round {round}");
