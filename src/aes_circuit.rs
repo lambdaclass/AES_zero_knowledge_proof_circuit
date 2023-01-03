@@ -1,7 +1,11 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{ensure, Result};
-use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
-use simpleworks::gadgets::{UInt32Gadget, UInt8Gadget};
+use ark_r1cs_std::{
+    prelude::{AllocVar, Boolean},
+    R1CSVar, ToBitsGadget,
+};
+use collect_slice::CollectSlice;
+use simpleworks::gadgets::{ConstraintF, UInt32Gadget, UInt8Gadget};
 
 /// This function returns the derived keys from the secret key.
 /// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
@@ -61,10 +65,18 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
 
     let mut result: Vec<UInt32Gadget> = Vec::with_capacity(44);
 
-    result.push(to_u32(secret_key.get(..4).to_anyhow("Error getting secret key slice when converting to u32")?)?);
-    result.push(to_u32(secret_key.get(4..8).to_anyhow("Error getting secret key slice when converting to u32")?)?);
-    result.push(to_u32(secret_key.get(8..12).to_anyhow("Error getting secret key slice when converting to u32")?)?);
-    result.push(to_u32(secret_key.get(12..16).to_anyhow("Error getting secret key slice when converting to u32")?)?);
+    result.push(to_u32(secret_key.get(..4).to_anyhow(
+        "Error getting secret key slice when converting to u32",
+    )?)?);
+    result.push(to_u32(secret_key.get(4..8).to_anyhow(
+        "Error getting secret key slice when converting to u32",
+    )?)?);
+    result.push(to_u32(secret_key.get(8..12).to_anyhow(
+        "Error getting secret key slice when converting to u32",
+    )?)?);
+    result.push(to_u32(secret_key.get(12..16).to_anyhow(
+        "Error getting secret key slice when converting to u32",
+    )?)?);
 
     for i in 4..44 {
         if i % 4 == 0 {
@@ -110,18 +122,34 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
     Ok(ret)
 }
 
-fn substitute_word(input: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
-    let mut result = vec![];
-    result.push(substitute_byte(&input[0])?);
-    result.push(substitute_byte(&input[1])?);
-    result.push(substitute_byte(&input[2])?);
-    result.push(substitute_byte(&input[3])?);
+fn substitute_word(input: &[UInt8Gadget]) -> Result<[UInt8Gadget; 4]> {
+    ensure!(
+        input.len() == 4,
+        "Input to substitute_word must be 4 bytes, got {}",
+        input.len()
+    );
 
     Ok([
-        substitute_byte(input.get(0).to_anyhow("Error getting input value 0 when substituting word")?)?,
-        substitute_byte(input.get(1).to_anyhow("Error getting input value 0 when substituting word")?)?,
-        substitute_byte(input.get(2).to_anyhow("Error getting input value 0 when substituting word")?)?,
-        substitute_byte(input.get(3).to_anyhow("Error getting input value 0 when substituting word")?)?,
+        substitute_byte(
+            input
+                .get(0)
+                .to_anyhow("Error getting input value 0 when substituting word")?,
+        )?,
+        substitute_byte(
+            input
+                .get(1)
+                .to_anyhow("Error getting input value 0 when substituting word")?,
+        )?,
+        substitute_byte(
+            input
+                .get(2)
+                .to_anyhow("Error getting input value 0 when substituting word")?,
+        )?,
+        substitute_byte(
+            input
+                .get(3)
+                .to_anyhow("Error getting input value 0 when substituting word")?,
+        )?,
     ])
 }
 
@@ -560,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn key_expansion() {
+    fn key_expansion_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let secret_key = UInt8Gadget::new_witness_vec(
             cs,
