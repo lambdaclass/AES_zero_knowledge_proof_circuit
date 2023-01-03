@@ -78,6 +78,16 @@ pub fn substitute_bytes(
     Ok(substituted_bytes)
 }
 
+fn substitute_word(input: [u8; 4]) -> Result<[u8; 4]> {
+    let mut result = [0_u8; 4];
+    result[0] = substitute_byte(input[0])?;
+    result[1] = substitute_byte(input[1])?;
+    result[2] = substitute_byte(input[2])?;
+    result[3] = substitute_byte(input[3])?;
+
+    Ok(result)
+}
+
 // num is a 128 bit number, represented
 // as 4 u32 numbers.
 pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<ConstraintF>) -> Result<[u8; 16]> {
@@ -210,7 +220,7 @@ pub fn derive_keys(secret_key: &[u8; 16]) -> Result<[[u8; 16]; 11]> {
 
     for i in 4..44 {
         if i % 4 == 0 {
-            let substituted_and_rotated = to_u32(&crate::substitute_word(rotate_word(
+            let substituted_and_rotated = to_u32(&substitute_word(rotate_word(
                 *result.get(i - 1).to_anyhow("Error converting to u32")?,
             ))?)
             .to_anyhow("Error converting to u32")?;

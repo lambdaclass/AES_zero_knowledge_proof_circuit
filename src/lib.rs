@@ -43,7 +43,6 @@ pub mod aes_circuit;
 pub mod helpers;
 pub mod ops;
 
-use crate::aes::substitute_byte;
 use anyhow::{anyhow, Result};
 use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
@@ -108,12 +107,8 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
 
 pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
-    let universal_srs = simpleworks::marlin::generate_universal_srs(
-        100_000_usize,
-        25_000_usize,
-        300_000_usize,
-        rng,
-    )?;
+    let universal_srs =
+        simpleworks::marlin::generate_universal_srs(10000000, 2500000, 30000000, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
     let default_message_input = vec![0_u8; plaintex_length];
@@ -192,14 +187,4 @@ fn encrypt_and_generate_constraints(
     }
 
     Ok(ciphertext)
-}
-
-fn substitute_word(input: [u8; 4]) -> Result<[u8; 4]> {
-    let mut result = [0_u8; 4];
-    result[0] = substitute_byte(input[0])?;
-    result[1] = substitute_byte(input[1])?;
-    result[2] = substitute_byte(input[2])?;
-    result[3] = substitute_byte(input[3])?;
-
-    Ok(result)
 }
