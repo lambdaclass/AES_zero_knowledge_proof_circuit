@@ -79,7 +79,11 @@ pub fn encrypt(
         })?);
     }
 
-    let ciphertext = encrypt_and_generate_constraints(&message_circuit, &secret_key_circuit)?;
+    let ciphertext = encrypt_and_generate_constraints(
+        &message_circuit,
+        &secret_key_circuit,
+        constraint_system.clone(),
+    )?;
 
     // Here we clone the constraint system because deep down when generating
     // the proof the constraint system is consumed and it has to have one
@@ -108,7 +112,7 @@ pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Re
 pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs =
-        simpleworks::marlin::generate_universal_srs(10_000_000, 2_500_000, 30_000_000, rng)?;
+        simpleworks::marlin::generate_universal_srs(1_000_000, 250_000, 3_000_000, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
     let default_message_input = vec![0_u8; plaintex_length];
@@ -129,7 +133,11 @@ pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingK
         })?);
     }
 
-    let _ciphertext = encrypt_and_generate_constraints(&message_circuit, &secret_key_circuit);
+    let _ciphertext = encrypt_and_generate_constraints(
+        &message_circuit,
+        &secret_key_circuit,
+        constraint_system.clone(),
+    );
 
     simpleworks::marlin::generate_proving_and_verifying_keys(&universal_srs, constraint_system)
 }
@@ -137,9 +145,11 @@ pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingK
 fn encrypt_and_generate_constraints(
     message: &[UInt8Gadget],
     secret_key: &[UInt8Gadget],
+    cs: ConstraintSystemRef<ConstraintF>,
 ) -> Result<Vec<u8>> {
     let mut ciphertext: Vec<u8> = Vec::new();
-    let round_keys = aes_circuit::derive_keys(secret_key)?;
+    let lookup_table = aes_circuit::lookup_table(cs)?;
+    let round_keys = aes_circuit::derive_keys(secret_key, &lookup_table)?;
 
     // TODO: Make this in 10 rounds instead of 1.
     // 1 round ECB
@@ -150,7 +160,8 @@ fn encrypt_and_generate_constraints(
         // the secret key.
         for round in 1_usize..=10_usize {
             // Step 1
-            let after_substitute_bytes = aes_circuit::substitute_bytes(&after_add_round_key)?;
+            let after_substitute_bytes =
+                aes_circuit::substitute_bytes(&after_add_round_key, &lookup_table)?;
             // Step 2
             let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes)
                 .to_anyhow("Error shifting rows")?;
