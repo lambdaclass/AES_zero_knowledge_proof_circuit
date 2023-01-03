@@ -61,10 +61,10 @@ pub fn derive_keys(secret_key: &[UInt8Gadget]) -> Result<Vec<Vec<UInt8Gadget>>> 
 
     let mut result: Vec<UInt32Gadget> = Vec::with_capacity(44);
 
-    result.push(to_u32(&secret_key[..4])?);
-    result.push(to_u32(&secret_key[4..8])?);
-    result.push(to_u32(&secret_key[8..12])?);
-    result.push(to_u32(&secret_key[12..16])?);
+    result.push(to_u32(secret_key.get(..4).to_anyhow("Error getting secret key slice when converting to u32")?)?);
+    result.push(to_u32(secret_key.get(4..8).to_anyhow("Error getting secret key slice when converting to u32")?)?);
+    result.push(to_u32(secret_key.get(8..12).to_anyhow("Error getting secret key slice when converting to u32")?)?);
+    result.push(to_u32(secret_key.get(12..16).to_anyhow("Error getting secret key slice when converting to u32")?)?);
 
     for i in 4..44 {
         if i % 4 == 0 {
@@ -117,7 +117,12 @@ fn substitute_word(input: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
     result.push(substitute_byte(&input[2])?);
     result.push(substitute_byte(&input[3])?);
 
-    Ok(result)
+    Ok([
+        substitute_byte(input.get(0).to_anyhow("Error getting input value 0 when substituting word")?)?,
+        substitute_byte(input.get(1).to_anyhow("Error getting input value 0 when substituting word")?)?,
+        substitute_byte(input.get(2).to_anyhow("Error getting input value 0 when substituting word")?)?,
+        substitute_byte(input.get(3).to_anyhow("Error getting input value 0 when substituting word")?)?,
+    ])
 }
 
 fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
@@ -135,7 +140,7 @@ fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
     ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
         Ok(*bytes.get(3).unwrap_or(&0))
     })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+    ret.push(UInt8Gadget::new_witness(constraint_system, || {
         Ok(*bytes.first().unwrap_or(&0))
     })?);
 
@@ -157,30 +162,17 @@ fn to_bytes_be(input: &mut UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
 }
 
 fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
-    let first_element = value
-        .first()
-        .to_anyhow("Error retrieving byte from UInt8 slice")?;
+    ensure!(value.len() == 4, "Invalid length for u32");
 
-    let constraint_system = first_element.cs();
-    let native_u32_value: [u8; 4] = [
-        first_element.value()?,
-        value
-            .get(1)
-            .to_anyhow("Error retrieving byte from UInt8 slice")?
-            .value()?,
-        value
-            .get(2)
-            .to_anyhow("Error retrieving byte from UInt8 slice")?
-            .value()?,
-        value
-            .get(3)
-            .to_anyhow("Error retrieving byte from UInt8 slice")?
-            .value()?,
-    ];
+    let mut bits = [Boolean::<ConstraintF>::FALSE; 32];
+    value
+        .iter()
+        .rev()
+        .filter_map(|elem| elem.to_bits_le().ok())
+        .flatten()
+        .collect_slice(&mut bits);
 
-    let value = u32::from_be_bytes(native_u32_value);
-
-    Ok(UInt32Gadget::new_witness(constraint_system, || Ok(value))?)
+    Ok(UInt32Gadget::from_bits_le(&bits))
 }
 
 pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
@@ -581,7 +573,7 @@ mod tests {
         let result = aes_circuit::derive_keys(&secret_key).unwrap();
 
         assert_eq!(
-            result[10].value().unwrap(),
+            result.get(10).unwrap().value().unwrap(),
             [
                 0xd0, 0x14, 0xf9, 0xa8, 0xc9, 0xee, 0x25, 0x89, 0xe1, 0x3f, 0x0c, 0xc8, 0xb6, 0x63,
                 0x0c, 0xa6,
