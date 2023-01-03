@@ -39,8 +39,7 @@ mod tests {
         } else {
             after_shift_rows
         };
-        // We should use the round key instead of the secret key here when
-        // key expansion is implemented.
+
         let start_of_next_round = add_round_key(&after_mix_columns, round_key);
         assert_eq!(
             start_of_next_round, expected_start_of_next_round,
