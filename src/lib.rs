@@ -45,7 +45,7 @@ pub mod ops;
 
 use anyhow::{anyhow, Result};
 use ark_bls12_377::Fr;
-use ark_r1cs_std::prelude::{AllocVar, EqGadget};
+use ark_r1cs_std::prelude::EqGadget;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
 use simpleworks::gadgets::UInt8Gadget;
@@ -67,26 +67,9 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(message.len());
-    for byte in message {
-        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
-
-    let mut secret_key_circuit: Vec<UInt8Gadget> = Vec::with_capacity(secret_key.len());
-    for byte in secret_key {
-        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
-
-    let mut ciphertext_circuit: Vec<UInt8Gadget> = Vec::with_capacity(ciphertext.len());
-    for byte in ciphertext {
-        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
+    let message_circuit = UInt8Gadget::new_witness_vec(constraint_system.clone(), message)?;
+    let secret_key_circuit = UInt8Gadget::new_witness_vec(constraint_system.clone(), secret_key)?;
+    let ciphertext_circuit = UInt8Gadget::new_input_vec(constraint_system.clone(), ciphertext)?;
 
     encrypt_and_generate_constraints(
         &message_circuit,
@@ -153,28 +136,12 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
     let default_secret_key_input = [0_u8; 16];
     let default_ciphertext_input = vec![0_u8; plaintext_length];
 
-    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(default_message_input.len());
-    for byte in default_message_input {
-        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
-
-    let mut secret_key_circuit: Vec<UInt8Gadget> =
-        Vec::with_capacity(default_secret_key_input.len());
-    for byte in default_secret_key_input {
-        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
-
-    let mut ciphertext_circuit: Vec<UInt8Gadget> =
-        Vec::with_capacity(default_ciphertext_input.len());
-    for byte in default_ciphertext_input {
-        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
-            Ok(byte)
-        })?);
-    }
+    let message_circuit =
+        UInt8Gadget::new_witness_vec(constraint_system.clone(), &default_message_input)?;
+    let secret_key_circuit =
+        UInt8Gadget::new_witness_vec(constraint_system.clone(), &default_secret_key_input)?;
+    let ciphertext_circuit =
+        UInt8Gadget::new_input_vec(constraint_system.clone(), &default_ciphertext_input)?;
 
     let _ciphertext = encrypt_and_generate_constraints(
         &message_circuit,
