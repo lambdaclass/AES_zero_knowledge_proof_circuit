@@ -67,6 +67,8 @@ pub fn encrypt(
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
+    // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
+    // `new_input_vec`, but for some reason that makes integration tests break??
     let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(message.len());
     for byte in message {
         message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
@@ -153,6 +155,8 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
     let default_secret_key_input = [0_u8; 16];
     let default_ciphertext_input = vec![0_u8; plaintext_length];
 
+    // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
+    // `new_input_vec`, but for some reason that makes integration tests break??
     let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(default_message_input.len());
     for byte in default_message_input {
         message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
