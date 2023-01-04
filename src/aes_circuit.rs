@@ -670,7 +670,7 @@ pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB0)?);
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0x54)?);
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x16)?);
+    ret.push(UInt8Gadget::new_constant(cs, 0x16)?);
 
     Ok(ret)
 }
