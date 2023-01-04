@@ -12,12 +12,14 @@ fn main() -> Result<()> {
     let primitive_secret_key = Aes128::new(GenericArray::from_slice(&secret_key));
     let (proving_key, verifying_key) = synthesize_keys(message.len())?;
 
-    let (_ciphertext, proof) = encrypt(&message, &secret_key, proving_key)?;
-    let _primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);
+    let primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);
+    let proof = encrypt(&message, &secret_key, &primitive_ciphertext, proving_key)?;
 
-    // Uncomment when we actually implement this
-    // assert_eq!(primitive_ciphertext, ciphertext);
-    assert!(verify_encryption(verifying_key, &proof)?);
+    assert!(verify_encryption(
+        verifying_key,
+        &proof,
+        &primitive_ciphertext
+    )?);
 
     Ok(())
 }

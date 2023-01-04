@@ -168,6 +168,7 @@ fn substitute_word(
     ])
 }
 
+// TODO: Generate constraints. Byte left rotation
 fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
     let value = input.value()?;
     let bytes: [u8; 4] = value.to_be_bytes();
@@ -268,6 +269,7 @@ pub fn substitute_bytes(
     Ok(substituted_bytes)
 }
 
+// TODO: generate constraints. Byte left rotation
 pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
@@ -307,7 +309,6 @@ pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
         bytes.get(15)?.clone(),
     ];
 
-    // TODO: this does not generate constraints, fix it.
     second_row.rotate_left(1);
     third_row.rotate_left(2);
     fourth_row.rotate_left(3);
@@ -354,10 +355,10 @@ pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
     Some(mixed_input)
 }
 
+// TODO: generate constraints. Left bit shifting
 fn gmix_column(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
     let mut b: Vec<UInt8Gadget> = Vec::new();
 
-    // TODO: Generate constraints for bit shifting.
     for c in input.iter() {
         let cs = c.cs();
 

@@ -44,7 +44,8 @@ pub mod helpers;
 pub mod ops;
 
 use anyhow::{anyhow, Result};
-use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
+use ark_bls12_377::Fr;
+use ark_r1cs_std::prelude::{AllocVar, EqGadget};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
 use simpleworks::gadgets::UInt8Gadget;
@@ -60,8 +61,9 @@ use std::rc::Rc;
 pub fn encrypt(
     message: &[u8],
     secret_key: &[u8; 16],
+    ciphertext: &[u8],
     proving_key: ProvingKey,
-) -> Result<(Vec<u8>, MarlinProof)> {
+) -> Result<MarlinProof> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
@@ -79,9 +81,17 @@ pub fn encrypt(
         })?);
     }
 
-    let ciphertext = encrypt_and_generate_constraints(
+    let mut ciphertext_circuit: Vec<UInt8Gadget> = Vec::with_capacity(ciphertext.len());
+    for byte in ciphertext {
+        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
+        &ciphertext_circuit,
         constraint_system.clone(),
     )?;
 
@@ -97,26 +107,51 @@ pub fn encrypt(
 
     let proof = simpleworks::marlin::generate_proof(cs_ref_clone, proving_key, rng)?;
 
-    Ok((ciphertext, proof))
+    Ok(proof)
 }
 
-pub fn verify_encryption(verifying_key: VerifyingKey, proof: &MarlinProof) -> Result<bool> {
+pub fn verify_encryption(
+    verifying_key: VerifyingKey,
+    proof: &MarlinProof,
+    ciphertext: &[u8],
+) -> Result<bool> {
+    let mut ciphertext_as_field_array = vec![];
+
+    for byte in ciphertext {
+        let field_array = byte_to_field_array(*byte);
+        for field_element in field_array {
+            ciphertext_as_field_array.push(field_element);
+        }
+    }
+
     simpleworks::marlin::verify_proof(
         verifying_key,
-        &[],
+        &ciphertext_as_field_array,
         proof,
         &mut simpleworks::marlin::generate_rand(),
     )
 }
 
-pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
+fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
+    let mut ret = vec![];
+
+    for i in 0..8 {
+        let bit = (byte & (1 << i)) != 0;
+        ret.push(Fr::from(bit));
+    }
+
+    ret
+}
+
+pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     let universal_srs =
         simpleworks::marlin::generate_universal_srs(1_000_000, 250_000, 3_000_000, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
-    let default_message_input = vec![0_u8; plaintex_length];
+    let default_message_input = vec![0_u8; plaintext_length];
     let default_secret_key_input = [0_u8; 16];
+    let default_ciphertext_input = vec![0_u8; plaintext_length];
 
     let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(default_message_input.len());
     for byte in default_message_input {
@@ -133,9 +168,18 @@ pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingK
         })?);
     }
 
+    let mut ciphertext_circuit: Vec<UInt8Gadget> =
+        Vec::with_capacity(default_ciphertext_input.len());
+    for byte in default_ciphertext_input {
+        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
     let _ciphertext = encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
+        &ciphertext_circuit,
         constraint_system.clone(),
     );
 
@@ -145,14 +189,13 @@ pub fn synthesize_keys(plaintex_length: usize) -> Result<(ProvingKey, VerifyingK
 fn encrypt_and_generate_constraints(
     message: &[UInt8Gadget],
     secret_key: &[UInt8Gadget],
+    ciphertext: &[UInt8Gadget],
     cs: ConstraintSystemRef<ConstraintF>,
-) -> Result<Vec<u8>> {
-    let mut ciphertext: Vec<u8> = Vec::new();
+) -> Result<()> {
+    let mut computed_ciphertext: Vec<UInt8Gadget> = Vec::new();
     let lookup_table = aes_circuit::lookup_table(cs)?;
     let round_keys = aes_circuit::derive_keys(secret_key, &lookup_table)?;
 
-    // TODO: Make this in 10 rounds instead of 1.
-    // 1 round ECB
     for block in message.chunks(16) {
         // Step 0
         let mut after_add_round_key = aes_circuit::add_round_key(block, secret_key)?;
@@ -191,11 +234,15 @@ fn encrypt_and_generate_constraints(
         let mut ciphertext_chunk = vec![];
 
         for u8_gadget in after_add_round_key {
-            ciphertext_chunk.push(u8_gadget.value()?);
+            ciphertext_chunk.push(u8_gadget);
         }
 
-        ciphertext.extend_from_slice(&ciphertext_chunk);
+        computed_ciphertext.extend_from_slice(&ciphertext_chunk);
     }
 
-    Ok(ciphertext)
+    for (i, byte) in ciphertext.iter().enumerate() {
+        byte.enforce_equal(&ciphertext[i])?;
+    }
+
+    Ok(())
 }
