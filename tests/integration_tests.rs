@@ -4,7 +4,7 @@ mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use poc_encryption_proof::{
         aes::{add_round_key, derive_keys, mix_columns, shift_rows, substitute_bytes},
-        encrypt, synthesize_keys,
+        encrypt, synthesize_keys, verify_encryption,
     };
     use simpleworks::{gadgets::ConstraintF, marlin::ConstraintSystemRef};
 
@@ -310,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
+    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_encrypt_a_16_bytes_plaintext() {
         let plaintext: [u8; 16] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
@@ -320,20 +320,20 @@ mod tests {
             0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
             0x4f, 0x3c,
         ];
-        let (proving_key, _verifying_key) = synthesize_keys(plaintext.len()).unwrap();
+        let (proving_key, verifying_key) = synthesize_keys(plaintext.len()).unwrap();
         let expected_ciphertext = [
             0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
             0x0b, 0x32,
         ];
 
-        // TODO: Assert against proof.
-        let (ciphertext, _proof) = encrypt(&plaintext, &key, proving_key).unwrap();
+        let (ciphertext, proof) = encrypt(&plaintext, &key, proving_key).unwrap();
+        assert!(verify_encryption(verifying_key, &proof).unwrap());
 
         assert_eq!(ciphertext, expected_ciphertext);
     }
 
     #[test]
-    #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
+    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_one_round_aes_encryption_of_a_64_bytes_plaintext() {
         let plaintext: [u8; 64] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
@@ -346,7 +346,7 @@ mod tests {
             0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
             0x4f, 0x3c,
         ];
-        let (proving_key, _verifying_key) = synthesize_keys(plaintext.len()).unwrap();
+        let (proving_key, verifying_key) = synthesize_keys(plaintext.len()).unwrap();
 
         let expected_ciphertext = [
             0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
@@ -356,8 +356,8 @@ mod tests {
             0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32,
         ];
 
-        // TODO: Assert against proof.
-        let (ciphertext, _proof) = encrypt(&plaintext, &key, proving_key).unwrap();
+        let (ciphertext, proof) = encrypt(&plaintext, &key, proving_key).unwrap();
+        assert!(verify_encryption(verifying_key, &proof).unwrap());
 
         assert_eq!(ciphertext, expected_ciphertext);
     }
