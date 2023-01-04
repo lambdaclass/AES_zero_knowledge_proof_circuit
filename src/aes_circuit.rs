@@ -150,19 +150,19 @@ fn substitute_word(
         substitute_byte(
             input
                 .get(1)
-                .to_anyhow("Error getting input value 0 when substituting word")?,
+                .to_anyhow("Error getting input value 1 when substituting word")?,
             lookup_table,
         )?,
         substitute_byte(
             input
                 .get(2)
-                .to_anyhow("Error getting input value 0 when substituting word")?,
+                .to_anyhow("Error getting input value 2 when substituting word")?,
             lookup_table,
         )?,
         substitute_byte(
             input
                 .get(3)
-                .to_anyhow("Error getting input value 0 when substituting word")?,
+                .to_anyhow("Error getting input value 3 when substituting word")?,
             lookup_table,
         )?,
     ])
