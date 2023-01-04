@@ -310,7 +310,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_encrypt_a_16_bytes_plaintext() {
         let plaintext: [u8; 16] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
@@ -326,14 +325,17 @@ mod tests {
             0x0b, 0x32,
         ];
 
-        let (ciphertext, proof) = encrypt(&plaintext, &key, proving_key).unwrap();
-        assert!(verify_encryption(verifying_key, &proof).unwrap());
+        let proof = encrypt(&plaintext, &key, &expected_ciphertext, proving_key).unwrap();
+        assert!(verify_encryption(verifying_key.clone(), &proof, &expected_ciphertext).unwrap());
 
-        assert_eq!(ciphertext, expected_ciphertext);
+        let wrong_ciphertext = [
+            0x39, 0x26, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
+            0x0b, 0x33,
+        ];
+        assert!(!verify_encryption(verifying_key, &proof, &wrong_ciphertext).unwrap());
     }
 
     #[test]
-    // #[ignore = "Ignoring until we have the universal SRS loaded from a file"]
     fn test_one_round_aes_encryption_of_a_64_bytes_plaintext() {
         let plaintext: [u8; 64] = [
             0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
@@ -356,9 +358,16 @@ mod tests {
             0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32,
         ];
 
-        let (ciphertext, proof) = encrypt(&plaintext, &key, proving_key).unwrap();
-        assert!(verify_encryption(verifying_key, &proof).unwrap());
+        let proof = encrypt(&plaintext, &key, &expected_ciphertext, proving_key).unwrap();
+        assert!(verify_encryption(verifying_key.clone(), &proof, &expected_ciphertext).unwrap());
 
-        assert_eq!(ciphertext, expected_ciphertext);
+        let wrong_ciphertext = [
+            0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
+            0x0b, 0x32, 0x39, 0x25, 0x84, 0x1d, 0x03, 0xdd, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97,
+            0x19, 0x6a, 0x0b, 0x32, 0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11,
+            0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32, 0x39, 0x26, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb,
+            0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x33,
+        ];
+        assert!(!verify_encryption(verifying_key, &proof, &wrong_ciphertext).unwrap());
     }
 }
