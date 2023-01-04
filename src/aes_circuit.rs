@@ -408,12 +408,13 @@ fn gmix_column(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
     ])
 }
 
+// I'm doing it this way because if instead I did something like
+// vec![...] there would be a huge stack allocation that, among other things,
+// would make compilation (yes, compilation) incredibly slow.
+#[allow(clippy::vec_init_then_push)]
 pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
     let mut ret = vec![];
 
-    // I'm doing it this way because if instead I did something like
-    // vec![...] there would be a huge stack allocation that, among other things,
-    // would make compilation (yes, compilation) incredibly slow.
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0x63)?);
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7C)?);
     ret.push(UInt8Gadget::new_constant(cs.clone(), 0x77)?);
