@@ -23,18 +23,24 @@ fn sample_message(amount_of_bytes: usize) -> Vec<u8> {
 }
 
 pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> Result<()> {
-    ensure!(amount_of_bytes % 16 == 0, "Message length in bytes should be a multiple of 16 for the moment");
+    ensure!(
+        amount_of_bytes % 16 == 0,
+        "Message length in bytes should be a multiple of 16 for the moment"
+    );
     let message = sample_message(amount_of_bytes);
-    let (proving_key, _verifying_key) = poc_encryption_proof::synthesize_keys(message.len()).unwrap();
+    let (proving_key, _verifying_key) =
+        poc_encryption_proof::synthesize_keys(message.len()).unwrap();
     let key: [u8; 16] = rand::random();
-    
-    let primitive_secret_key = aes::Aes128::new(digest::generic_array::GenericArray::from_slice(&key));
+
+    let primitive_secret_key =
+        aes::Aes128::new(digest::generic_array::GenericArray::from_slice(&key));
     let ciphertext = primitive_encrypt(&message, &primitive_secret_key);
 
     let mut group = c.benchmark_group("Encryption");
     group.bench_function(format!("{amount_of_bytes}_message_encryption"), |b| {
         b.iter(|| {
-            poc_encryption_proof::encrypt(&message, &key,  &ciphertext, proving_key.clone()).unwrap();
+            poc_encryption_proof::encrypt(&message, &key, &ciphertext, proving_key.clone())
+                .unwrap();
         })
     });
     group.finish();
