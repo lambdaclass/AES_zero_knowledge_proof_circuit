@@ -1,13 +1,16 @@
-use crate::helpers::traits::ToAnyhow;
+use crate::helpers::{self, traits::ToAnyhow};
 use anyhow::{ensure, Result};
 use ark_r1cs_std::{
     prelude::{AllocVar, Boolean},
     select::CondSelectGadget,
-    R1CSVar, ToBitsGadget,
+    ToBitsGadget,
 };
 use collect_slice::CollectSlice;
 use simpleworks::{
-    gadgets::{ConstraintF, UInt32Gadget, UInt8Gadget},
+    gadgets::{
+        traits::{BitShiftGadget, ByteRotationGadget},
+        ConstraintF, UInt32Gadget, UInt8Gadget,
+    },
     marlin::ConstraintSystemRef,
 };
 
@@ -19,14 +22,8 @@ use simpleworks::{
 pub fn derive_keys(
     secret_key: &[UInt8Gadget],
     lookup_table: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
 ) -> Result<Vec<Vec<UInt8Gadget>>> {
-    // TODO: We should just pass around the constraint system explicitly instead of
-    // doing this everywhere.
-    let constraint_system = secret_key
-        .first()
-        .to_anyhow("Error getting the first byte of the secret key")?
-        .cs();
-
     let round_constants: [UInt32Gadget; 10] = [
         UInt32Gadget::new_constant(
             constraint_system.clone(),
@@ -65,7 +62,7 @@ pub fn derive_keys(
             u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
         )?,
         UInt32Gadget::new_constant(
-            constraint_system,
+            constraint_system.clone(),
             u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
         )?,
     ];
@@ -88,7 +85,10 @@ pub fn derive_keys(
     for i in 4..44 {
         if i % 4 == 0 {
             let substituted_and_rotated = to_u32(&substitute_word(
-                &rotate_word(result.get(i - 1).to_anyhow("Error converting to u32")?)?,
+                &rotate_word(
+                    result.get(i - 1).to_anyhow("Error rotating word")?,
+                    constraint_system.clone(),
+                )?,
                 lookup_table,
             )?)?;
 
@@ -691,6 +691,7 @@ pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
 
     Ok(ret)
 }
+
 #[cfg(test)]
 mod tests {
     use crate::aes_circuit;
@@ -825,14 +826,14 @@ mod tests {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let lookup_table = aes_circuit::lookup_table(cs.clone()).unwrap();
         let secret_key = UInt8Gadget::new_witness_vec(
-            cs,
+            cs.clone(),
             &[
                 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
                 0x4f, 0x3c,
             ],
         )
         .unwrap();
-        let result = aes_circuit::derive_keys(&secret_key, &lookup_table).unwrap();
+        let result = aes_circuit::derive_keys(&secret_key, &lookup_table, cs.clone()).unwrap();
 
         assert_eq!(
             result.get(10).unwrap().value().unwrap(),
