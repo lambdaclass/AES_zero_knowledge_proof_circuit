@@ -245,7 +245,11 @@ fn encrypt_and_generate_constraints(
     }
 
     for (i, byte) in ciphertext.iter().enumerate() {
-        byte.enforce_equal(ciphertext.get(i).to_anyhow("Error getting ciphertext byte")?)?;
+        byte.enforce_equal(
+            ciphertext
+                .get(i)
+                .to_anyhow("Error getting ciphertext byte")?,
+        )?;
     }
 
     Ok(())
