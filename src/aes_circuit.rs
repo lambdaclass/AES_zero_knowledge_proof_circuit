@@ -168,27 +168,22 @@ fn substitute_word(
     ])
 }
 
-// TODO: Generate constraints. Byte left rotation
-fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
-    let value = input.value()?;
-    let bytes: [u8; 4] = value.to_be_bytes();
-    let constraint_system = input.cs();
+fn rotate_word(
+    input: &UInt32Gadget,
+    constraint_system: ConstraintSystemRef,
+) -> Result<[UInt8Gadget; 4]> {
+    let mut word_to_rotate = [
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+    ];
 
-    let mut ret = vec![];
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(1).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(2).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(3).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system, || {
-        Ok(*bytes.first().unwrap_or(&0))
-    })?);
+    for (word_to_rotate_byte, input_byte) in word_to_rotate.iter_mut().zip(to_bytes_be(input)) {
+        *word_to_rotate_byte = input_byte;
+    }
 
-    Ok(ret)
+    word_to_rotate.rotate_left(1, constraint_system)
 }
 
 // It's either this or forking `r1cs-std`.
