@@ -332,7 +332,10 @@ pub fn shift_rows(
     Some(result)
 }
 
-pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+pub fn mix_columns(
+    input: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
+) -> Option<Vec<UInt8Gadget>> {
     let mut mixed_input = UInt8Gadget::constant_vec(&[0_u8; 16]);
     for (i, column) in input.chunks(4).enumerate() {
         let column_aux = [
@@ -341,7 +344,7 @@ pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
             column.get(2)?.clone(),
             column.get(3)?.clone(),
         ];
-        let column_ret = gmix_column(&column_aux)?;
+        let column_ret = gmix_column(&column_aux, constraint_system.clone())?;
 
         *mixed_input.get_mut(i * 4)? = column_ret.first()?.clone();
         *mixed_input.get_mut(i * 4 + 1)? = column_ret.get(1)?.clone();
@@ -352,18 +355,34 @@ pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
     Some(mixed_input)
 }
 
-// TODO: generate constraints. Left bit shifting
-fn gmix_column(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
+// TODO: this function should return a result.
+fn gmix_column(
+    input: &[UInt8Gadget; 4],
+    constraint_system: ConstraintSystemRef,
+) -> Option<[UInt8Gadget; 4]> {
     let mut b: Vec<UInt8Gadget> = Vec::new();
 
     for c in input.iter() {
-        let cs = c.cs();
+        // TODO: Refactor this when and() is implemented for UInt8Gadget.
+        let h_bits = c
+            .shift_right(7, constraint_system.clone())
+            .ok()?
+            .to_bits_le()
+            .ok()?
+            .iter()
+            .zip(UInt8Gadget::constant(1).to_bits_le().ok()?)
+            .filter_map(|(a, b)| a.and(&b).ok())
+            .collect::<Vec<Boolean<ConstraintF>>>();
+        let h = UInt8Gadget::from_bits_le(&h_bits);
+        let partial_b_byte = c.shift_left(1, constraint_system.clone()).ok()?;
+        let b_byte = partial_b_byte
+            .xor(
+                &helpers::multiply(&h, &UInt8Gadget::constant(0x1B), constraint_system.clone())
+                    .ok()?,
+            )
+            .ok()?;
 
-        let primitive_c = c.value().ok()?;
-        let primitive_h = (primitive_c >> 7_usize) & 1; // arithmetic right shift, thus shifting in either zeros or ones.
-        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); // implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line.
-
-        b.push(UInt8Gadget::new_witness(cs, || Ok(primitive_b_byte)).ok()?);
+        b.push(b_byte);
     }
 
     Some([
@@ -728,7 +747,7 @@ mod tests {
             0x26, 0x4c,
         ];
 
-        let mixed_column_vector = aes_circuit::mix_columns(&value_to_mix).unwrap();
+        let mixed_column_vector = aes_circuit::mix_columns(&value_to_mix, cs.clone()).unwrap();
 
         assert_eq!(
             mixed_column_vector.value().unwrap(),
