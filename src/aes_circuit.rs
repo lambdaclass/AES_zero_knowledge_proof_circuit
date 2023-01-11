@@ -833,7 +833,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let result = aes_circuit::derive_keys(&secret_key, &lookup_table, cs.clone()).unwrap();
+        let result = aes_circuit::derive_keys(&secret_key, &lookup_table, cs).unwrap();
 
         assert_eq!(
             result.get(10).unwrap().value().unwrap(),

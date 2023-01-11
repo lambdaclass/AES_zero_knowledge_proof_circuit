@@ -137,7 +137,7 @@ pub fn verify_encryption(
 fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
     let mut ret = vec![];
 
-    for i in 0..8 {
+    for i in 0_i32..8_i32 {
         let bit = (byte & (1 << i)) != 0;
         ret.push(Fr::from(bit));
     }
@@ -245,7 +245,7 @@ fn encrypt_and_generate_constraints(
     }
 
     for (i, byte) in ciphertext.iter().enumerate() {
-        byte.enforce_equal(&ciphertext[i])?;
+        byte.enforce_equal(ciphertext.get(i).to_anyhow("Error getting ciphertext byte")?)?;
     }
 
     Ok(())
