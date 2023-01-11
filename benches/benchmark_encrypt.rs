@@ -2,7 +2,11 @@ use aes::cipher::KeyInit;
 use anyhow::{ensure, Result};
 use criterion::Criterion;
 
-fn primitive_encrypy_block(encrypted_message: &mut Vec<u8>, chunk: &[u8], primitive_secret_key: &aes::Aes128) {
+fn primitive_encrypy_block(
+    encrypted_message: &mut Vec<u8>,
+    chunk: &[u8],
+    primitive_secret_key: &aes::Aes128,
+) {
     let mut block = digest::generic_array::GenericArray::clone_from_slice(chunk);
     aes::cipher::BlockEncrypt::encrypt_block(&primitive_secret_key, &mut block);
     encrypted_message.extend_from_slice(&block);
@@ -27,7 +31,11 @@ fn primitive_encrypt(message: &[u8], primitive_secret_key: &aes::Aes128) -> Vec<
     {
         *extended_chunk_byte = *chunk_byte;
     }
-    primitive_encrypy_block(&mut encrypted_message, &extended_chunk, primitive_secret_key);
+    primitive_encrypy_block(
+        &mut encrypted_message,
+        &extended_chunk,
+        primitive_secret_key,
+    );
 
     encrypted_message
 }
