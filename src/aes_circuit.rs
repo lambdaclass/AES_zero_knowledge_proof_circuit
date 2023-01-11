@@ -269,8 +269,10 @@ pub fn substitute_bytes(
     Ok(substituted_bytes)
 }
 
-// TODO: generate constraints. Byte left rotation
-pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+pub fn shift_rows(
+    bytes: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
+) -> Option<Vec<UInt8Gadget>> {
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -290,46 +292,46 @@ pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
         bytes.get(8)?.clone(),
         bytes.get(12)?.clone(),
     ];
-    let mut second_row = [
+    let second_row = [
         bytes.get(1)?.clone(),
         bytes.get(5)?.clone(),
         bytes.get(9)?.clone(),
         bytes.get(13)?.clone(),
     ];
-    let mut third_row = [
+    let third_row = [
         bytes.get(2)?.clone(),
         bytes.get(6)?.clone(),
         bytes.get(10)?.clone(),
         bytes.get(14)?.clone(),
     ];
-    let mut fourth_row = [
+    let fourth_row = [
         bytes.get(3)?.clone(),
         bytes.get(7)?.clone(),
         bytes.get(11)?.clone(),
         bytes.get(15)?.clone(),
     ];
 
-    second_row.rotate_left(1);
-    third_row.rotate_left(2);
-    fourth_row.rotate_left(3);
+    let rotated_second_row = second_row.rotate_left(1, constraint_system.clone()).ok()?;
+    let rotated_third_row = third_row.rotate_left(2, constraint_system.clone()).ok()?;
+    let rotated_fourth_row = fourth_row.rotate_left(3, constraint_system).ok()?;
 
     let result = vec![
         first_row.get(0)?.clone(),
-        second_row.get(0)?.clone(),
-        third_row.get(0)?.clone(),
-        fourth_row.get(0)?.clone(),
+        rotated_second_row.get(0)?.clone(),
+        rotated_third_row.get(0)?.clone(),
+        rotated_fourth_row.get(0)?.clone(),
         first_row.get(1)?.clone(),
-        second_row.get(1)?.clone(),
-        third_row.get(1)?.clone(),
-        fourth_row.get(1)?.clone(),
+        rotated_second_row.get(1)?.clone(),
+        rotated_third_row.get(1)?.clone(),
+        rotated_fourth_row.get(1)?.clone(),
         first_row.get(2)?.clone(),
-        second_row.get(2)?.clone(),
-        third_row.get(2)?.clone(),
-        fourth_row.get(2)?.clone(),
+        rotated_second_row.get(2)?.clone(),
+        rotated_third_row.get(2)?.clone(),
+        rotated_fourth_row.get(2)?.clone(),
         first_row.get(3)?.clone(),
-        second_row.get(3)?.clone(),
-        third_row.get(3)?.clone(),
-        fourth_row.get(3)?.clone(),
+        rotated_second_row.get(3)?.clone(),
+        rotated_third_row.get(3)?.clone(),
+        rotated_fourth_row.get(3)?.clone(),
     ];
 
     Some(result)
@@ -770,7 +772,7 @@ mod tests {
             value_to_shift.get(11).unwrap(),
         ];
 
-        let res = aes_circuit::shift_rows(&value_to_shift);
+        let res = aes_circuit::shift_rows(&value_to_shift, cs.clone());
         for (index, byte) in res.unwrap().iter().enumerate() {
             assert_eq!(byte.value(), expected.get(index).unwrap().value());
         }
