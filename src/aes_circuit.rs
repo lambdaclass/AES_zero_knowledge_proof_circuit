@@ -187,7 +187,7 @@ fn rotate_word(
 }
 
 // It's either this or forking `r1cs-std`.
-fn to_bytes_be(input: &mut UInt32Gadget) -> Vec<UInt8Gadget> {
+fn to_bytes_be(input: &UInt32Gadget) -> Vec<UInt8Gadget> {
     let mut bits = input.to_bits_le();
     bits.reverse();
 
