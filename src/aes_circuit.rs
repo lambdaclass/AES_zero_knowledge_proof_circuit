@@ -1,13 +1,16 @@
-use crate::helpers::traits::ToAnyhow;
+use crate::helpers::{self, traits::ToAnyhow};
 use anyhow::{ensure, Result};
 use ark_r1cs_std::{
     prelude::{AllocVar, Boolean},
     select::CondSelectGadget,
-    R1CSVar, ToBitsGadget,
+    ToBitsGadget,
 };
 use collect_slice::CollectSlice;
 use simpleworks::{
-    gadgets::{ConstraintF, UInt32Gadget, UInt8Gadget},
+    gadgets::{
+        traits::{BitShiftGadget, ByteRotationGadget},
+        ConstraintF, UInt32Gadget, UInt8Gadget,
+    },
     marlin::ConstraintSystemRef,
 };
 
@@ -19,14 +22,8 @@ use simpleworks::{
 pub fn derive_keys(
     secret_key: &[UInt8Gadget],
     lookup_table: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
 ) -> Result<Vec<Vec<UInt8Gadget>>> {
-    // TODO: We should just pass around the constraint system explicitly instead of
-    // doing this everywhere.
-    let constraint_system = secret_key
-        .first()
-        .to_anyhow("Error getting the first byte of the secret key")?
-        .cs();
-
     let round_constants: [UInt32Gadget; 10] = [
         UInt32Gadget::new_constant(
             constraint_system.clone(),
@@ -65,7 +62,7 @@ pub fn derive_keys(
             u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
         )?,
         UInt32Gadget::new_constant(
-            constraint_system,
+            constraint_system.clone(),
             u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
         )?,
     ];
@@ -88,7 +85,10 @@ pub fn derive_keys(
     for i in 4..44 {
         if i % 4 == 0 {
             let substituted_and_rotated = to_u32(&substitute_word(
-                &rotate_word(result.get(i - 1).to_anyhow("Error converting to u32")?)?,
+                &rotate_word(
+                    result.get(i - 1).to_anyhow("Error rotating word")?,
+                    constraint_system.clone(),
+                )?,
                 lookup_table,
             )?)?;
 
@@ -168,31 +168,26 @@ fn substitute_word(
     ])
 }
 
-// TODO: Generate constraints. Byte left rotation
-fn rotate_word(input: &UInt32Gadget) -> Result<Vec<UInt8Gadget>> {
-    let value = input.value()?;
-    let bytes: [u8; 4] = value.to_be_bytes();
-    let constraint_system = input.cs();
+fn rotate_word(
+    input: &UInt32Gadget,
+    constraint_system: ConstraintSystemRef,
+) -> Result<[UInt8Gadget; 4]> {
+    let mut word_to_rotate = [
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+        UInt8Gadget::constant(0),
+    ];
 
-    let mut ret = vec![];
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(1).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(2).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
-        Ok(*bytes.get(3).unwrap_or(&0))
-    })?);
-    ret.push(UInt8Gadget::new_witness(constraint_system, || {
-        Ok(*bytes.first().unwrap_or(&0))
-    })?);
+    for (word_to_rotate_byte, input_byte) in word_to_rotate.iter_mut().zip(to_bytes_be(input)) {
+        *word_to_rotate_byte = input_byte;
+    }
 
-    Ok(ret)
+    word_to_rotate.rotate_left(1, constraint_system)
 }
 
 // It's either this or forking `r1cs-std`.
-fn to_bytes_be(input: &mut UInt32Gadget) -> Vec<UInt8Gadget> {
+fn to_bytes_be(input: &UInt32Gadget) -> Vec<UInt8Gadget> {
     let mut bits = input.to_bits_le();
     bits.reverse();
 
@@ -269,8 +264,10 @@ pub fn substitute_bytes(
     Ok(substituted_bytes)
 }
 
-// TODO: generate constraints. Byte left rotation
-pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+pub fn shift_rows(
+    bytes: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
+) -> Option<Vec<UInt8Gadget>> {
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -290,52 +287,55 @@ pub fn shift_rows(bytes: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
         bytes.get(8)?.clone(),
         bytes.get(12)?.clone(),
     ];
-    let mut second_row = [
+    let second_row = [
         bytes.get(1)?.clone(),
         bytes.get(5)?.clone(),
         bytes.get(9)?.clone(),
         bytes.get(13)?.clone(),
     ];
-    let mut third_row = [
+    let third_row = [
         bytes.get(2)?.clone(),
         bytes.get(6)?.clone(),
         bytes.get(10)?.clone(),
         bytes.get(14)?.clone(),
     ];
-    let mut fourth_row = [
+    let fourth_row = [
         bytes.get(3)?.clone(),
         bytes.get(7)?.clone(),
         bytes.get(11)?.clone(),
         bytes.get(15)?.clone(),
     ];
 
-    second_row.rotate_left(1);
-    third_row.rotate_left(2);
-    fourth_row.rotate_left(3);
+    let rotated_second_row = second_row.rotate_left(1, constraint_system.clone()).ok()?;
+    let rotated_third_row = third_row.rotate_left(2, constraint_system.clone()).ok()?;
+    let rotated_fourth_row = fourth_row.rotate_left(3, constraint_system).ok()?;
 
     let result = vec![
         first_row.get(0)?.clone(),
-        second_row.get(0)?.clone(),
-        third_row.get(0)?.clone(),
-        fourth_row.get(0)?.clone(),
+        rotated_second_row.get(0)?.clone(),
+        rotated_third_row.get(0)?.clone(),
+        rotated_fourth_row.get(0)?.clone(),
         first_row.get(1)?.clone(),
-        second_row.get(1)?.clone(),
-        third_row.get(1)?.clone(),
-        fourth_row.get(1)?.clone(),
+        rotated_second_row.get(1)?.clone(),
+        rotated_third_row.get(1)?.clone(),
+        rotated_fourth_row.get(1)?.clone(),
         first_row.get(2)?.clone(),
-        second_row.get(2)?.clone(),
-        third_row.get(2)?.clone(),
-        fourth_row.get(2)?.clone(),
+        rotated_second_row.get(2)?.clone(),
+        rotated_third_row.get(2)?.clone(),
+        rotated_fourth_row.get(2)?.clone(),
         first_row.get(3)?.clone(),
-        second_row.get(3)?.clone(),
-        third_row.get(3)?.clone(),
-        fourth_row.get(3)?.clone(),
+        rotated_second_row.get(3)?.clone(),
+        rotated_third_row.get(3)?.clone(),
+        rotated_fourth_row.get(3)?.clone(),
     ];
 
     Some(result)
 }
 
-pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
+pub fn mix_columns(
+    input: &[UInt8Gadget],
+    constraint_system: ConstraintSystemRef,
+) -> Option<Vec<UInt8Gadget>> {
     let mut mixed_input = UInt8Gadget::constant_vec(&[0_u8; 16]);
     for (i, column) in input.chunks(4).enumerate() {
         let column_aux = [
@@ -344,7 +344,7 @@ pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
             column.get(2)?.clone(),
             column.get(3)?.clone(),
         ];
-        let column_ret = gmix_column(&column_aux)?;
+        let column_ret = gmix_column(&column_aux, constraint_system.clone())?;
 
         *mixed_input.get_mut(i * 4)? = column_ret.first()?.clone();
         *mixed_input.get_mut(i * 4 + 1)? = column_ret.get(1)?.clone();
@@ -355,18 +355,34 @@ pub fn mix_columns(input: &[UInt8Gadget]) -> Option<Vec<UInt8Gadget>> {
     Some(mixed_input)
 }
 
-// TODO: generate constraints. Left bit shifting
-fn gmix_column(input: &[UInt8Gadget; 4]) -> Option<[UInt8Gadget; 4]> {
+// TODO: this function should return a result.
+fn gmix_column(
+    input: &[UInt8Gadget; 4],
+    constraint_system: ConstraintSystemRef,
+) -> Option<[UInt8Gadget; 4]> {
     let mut b: Vec<UInt8Gadget> = Vec::new();
 
     for c in input.iter() {
-        let cs = c.cs();
+        // TODO: Refactor this when and() is implemented for UInt8Gadget.
+        let h_bits = c
+            .shift_right(7, constraint_system.clone())
+            .ok()?
+            .to_bits_le()
+            .ok()?
+            .iter()
+            .zip(UInt8Gadget::constant(1).to_bits_le().ok()?)
+            .filter_map(|(a, b)| a.and(&b).ok())
+            .collect::<Vec<Boolean<ConstraintF>>>();
+        let h = UInt8Gadget::from_bits_le(&h_bits);
+        let partial_b_byte = c.shift_left(1, constraint_system.clone()).ok()?;
+        let b_byte = partial_b_byte
+            .xor(
+                &helpers::multiply(&h, &UInt8Gadget::constant(0x1B), constraint_system.clone())
+                    .ok()?,
+            )
+            .ok()?;
 
-        let primitive_c = c.value().ok()?;
-        let primitive_h = (primitive_c >> 7_usize) & 1; // arithmetic right shift, thus shifting in either zeros or ones.
-        let primitive_b_byte = (primitive_c << 1_usize) ^ (primitive_h * 0x1B); // implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line.
-
-        b.push(UInt8Gadget::new_witness(cs, || Ok(primitive_b_byte)).ok()?);
+        b.push(b_byte);
     }
 
     Some([
@@ -675,6 +691,7 @@ pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
 
     Ok(ret)
 }
+
 #[cfg(test)]
 mod tests {
     use crate::aes_circuit;
@@ -731,7 +748,7 @@ mod tests {
             0x26, 0x4c,
         ];
 
-        let mixed_column_vector = aes_circuit::mix_columns(&value_to_mix).unwrap();
+        let mixed_column_vector = aes_circuit::mix_columns(&value_to_mix, cs.clone()).unwrap();
 
         assert_eq!(
             mixed_column_vector.value().unwrap(),
@@ -770,7 +787,7 @@ mod tests {
             value_to_shift.get(11).unwrap(),
         ];
 
-        let res = aes_circuit::shift_rows(&value_to_shift);
+        let res = aes_circuit::shift_rows(&value_to_shift, cs.clone());
         for (index, byte) in res.unwrap().iter().enumerate() {
             assert_eq!(byte.value(), expected.get(index).unwrap().value());
         }
@@ -809,14 +826,14 @@ mod tests {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
         let lookup_table = aes_circuit::lookup_table(cs.clone()).unwrap();
         let secret_key = UInt8Gadget::new_witness_vec(
-            cs,
+            cs.clone(),
             &[
                 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
                 0x4f, 0x3c,
             ],
         )
         .unwrap();
-        let result = aes_circuit::derive_keys(&secret_key, &lookup_table).unwrap();
+        let result = aes_circuit::derive_keys(&secret_key, &lookup_table, cs).unwrap();
 
         assert_eq!(
             result.get(10).unwrap().value().unwrap(),
