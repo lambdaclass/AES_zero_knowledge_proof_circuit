@@ -85,10 +85,3 @@ This step simply writes the input as a byte matrix and then rotates each row.
 
 ### Key Derivation
 The key derivation is the most complex step, but it's ultimately just a combination of all the basic operations used in the four steps for every round.
-
-## Missing constraints
-
-There are currently two basic operations that are not properly implemented inside our circuit, as they do not generate constraints. They are:
-
-- Left shift, i.e., doing `a << n` for some `a` and `n`.
-- Left byte rotation. Given a `u32`, divide into 4 bytes and rotate them left a certain amount.

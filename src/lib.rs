@@ -137,7 +137,7 @@ pub fn verify_encryption(
 fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
     let mut ret = vec![];
 
-    for i in 0..8 {
+    for i in 0_i32..8_i32 {
         let bit = (byte & (1 << i)) != 0;
         ret.push(Fr::from(bit));
     }
@@ -197,8 +197,8 @@ fn encrypt_and_generate_constraints(
     cs: ConstraintSystemRef<ConstraintF>,
 ) -> Result<()> {
     let mut computed_ciphertext: Vec<UInt8Gadget> = Vec::new();
-    let lookup_table = aes_circuit::lookup_table(cs)?;
-    let round_keys = aes_circuit::derive_keys(secret_key, &lookup_table)?;
+    let lookup_table = aes_circuit::lookup_table(cs.clone())?;
+    let round_keys = aes_circuit::derive_keys(secret_key, &lookup_table, cs.clone())?;
 
     for block in message.chunks(16) {
         // Step 0
@@ -210,12 +210,12 @@ fn encrypt_and_generate_constraints(
             let after_substitute_bytes =
                 aes_circuit::substitute_bytes(&after_add_round_key, &lookup_table)?;
             // Step 2
-            let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes)
+            let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes, cs.clone())
                 .to_anyhow("Error shifting rows")?;
             // Step 3
             // TODO: This mix columns operation is being done on the last round, but it's not taken into
             // account. To increase performance we could move this inside the if statement below.
-            let after_mix_columns = aes_circuit::mix_columns(&after_shift_rows)
+            let after_mix_columns = aes_circuit::mix_columns(&after_shift_rows, cs.clone())
                 .to_anyhow("Error mixing columns when encrypting")?;
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
@@ -245,7 +245,11 @@ fn encrypt_and_generate_constraints(
     }
 
     for (i, byte) in ciphertext.iter().enumerate() {
-        byte.enforce_equal(&ciphertext[i])?;
+        byte.enforce_equal(
+            ciphertext
+                .get(i)
+                .to_anyhow("Error getting ciphertext byte")?,
+        )?;
     }
 
     Ok(())
