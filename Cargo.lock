@@ -1164,6 +1164,7 @@ dependencies = [
  "collect_slice",
  "criterion",
  "digest",
+ "log",
  "parking_lot",
  "pprof",
  "rand",

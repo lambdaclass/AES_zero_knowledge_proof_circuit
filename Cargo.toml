@@ -30,6 +30,7 @@ anyhow = "1.0"
 collect_slice = "^1.2.0"
 aes = "0.8"
 rand = "0.8.5"
+log = "0.4"
 
 [profile.bench]
 opt-level = 3
