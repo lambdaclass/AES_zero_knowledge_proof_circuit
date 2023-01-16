@@ -1,5 +1,7 @@
+use crate::helpers::traits::ToAnyhow;
 use anyhow::{anyhow, Result};
 use ark_r1cs_std::{prelude::Boolean, R1CSVar, ToBitsGadget};
+use log::debug;
 use simpleworks::{
     gadgets::{traits::BitShiftGadget, ConstraintF, UInt8Gadget},
     marlin::ConstraintSystemRef,
@@ -60,4 +62,22 @@ pub fn multiply(
     }
 
     Ok(product)
+}
+
+pub fn debug_constraint_system_status(
+    message: &str,
+    constraint_system: ConstraintSystemRef,
+) -> Result<()> {
+    let matrix = constraint_system
+        .to_matrices()
+        .to_anyhow("Error converting the constraint system to matrices")?;
+    debug!("CONSTRAINT SYSTEM STATUS: {message}");
+    debug!("Number of constraints: {}", matrix.num_constraints);
+    debug!("Number of variables: {}", matrix.num_instance_variables);
+    debug!("Number of witnesses: {}", matrix.num_witness_variables);
+    debug!(
+        "Number of non-zero: {}",
+        matrix.a_num_non_zero + matrix.b_num_non_zero + matrix.c_num_non_zero
+    );
+    Ok(())
 }

@@ -7,6 +7,7 @@ use digest::generic_array::GenericArray;
 use poc_encryption_proof::{encrypt, synthesize_keys, verify_encryption};
 
 fn main() -> Result<()> {
+    env_logger::init();
     let message = [1_u8; 16];
     let secret_key = [0_u8; 16];
     let primitive_secret_key = Aes128::new(GenericArray::from_slice(&secret_key));

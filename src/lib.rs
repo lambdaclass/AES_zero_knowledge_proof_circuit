@@ -75,6 +75,10 @@ pub fn encrypt(
             Ok(byte)
         })?);
     }
+    helpers::debug_constraint_system_status(
+        "After allocating the message",
+        constraint_system.clone(),
+    )?;
 
     let mut secret_key_circuit: Vec<UInt8Gadget> = Vec::with_capacity(secret_key.len());
     for byte in secret_key {
@@ -82,6 +86,10 @@ pub fn encrypt(
             Ok(byte)
         })?);
     }
+    helpers::debug_constraint_system_status(
+        "After allocating the secret key",
+        constraint_system.clone(),
+    )?;
 
     let mut ciphertext_circuit: Vec<UInt8Gadget> = Vec::with_capacity(ciphertext.len());
     for byte in ciphertext {
@@ -89,6 +97,10 @@ pub fn encrypt(
             Ok(byte)
         })?);
     }
+    helpers::debug_constraint_system_status(
+        "After allocating the ciphertext",
+        constraint_system.clone(),
+    )?;
 
     encrypt_and_generate_constraints(
         &message_circuit,
@@ -107,6 +119,7 @@ pub fn encrypt(
     .clone();
     let cs_ref_clone = ConstraintSystemRef::CS(Rc::new(RefCell::new(cs_clone)));
 
+    helpers::debug_constraint_system_status("Before generating the proof", constraint_system)?;
     let proof = simpleworks::marlin::generate_proof(cs_ref_clone, proving_key, rng)?;
 
     Ok(proof)
@@ -194,29 +207,56 @@ fn encrypt_and_generate_constraints(
     message: &[UInt8Gadget],
     secret_key: &[UInt8Gadget],
     ciphertext: &[UInt8Gadget],
-    cs: ConstraintSystemRef<ConstraintF>,
+    constraint_system: ConstraintSystemRef<ConstraintF>,
 ) -> Result<()> {
     let mut computed_ciphertext: Vec<UInt8Gadget> = Vec::new();
-    let lookup_table = aes_circuit::lookup_table(cs.clone())?;
-    let round_keys = aes_circuit::derive_keys(secret_key, &lookup_table, cs.clone())?;
+    let lookup_table = aes_circuit::lookup_table(constraint_system.clone())?;
+    helpers::debug_constraint_system_status(
+        "After generating the lookup table",
+        constraint_system.clone(),
+    )?;
+    let round_keys =
+        aes_circuit::derive_keys(secret_key, &lookup_table, constraint_system.clone())?;
+    helpers::debug_constraint_system_status(
+        "After deriving the round keys",
+        constraint_system.clone(),
+    )?;
 
     for block in message.chunks(16) {
         // Step 0
         let mut after_add_round_key = aes_circuit::add_round_key(block, secret_key)?;
+        helpers::debug_constraint_system_status(
+            "After adding round key in round 0",
+            constraint_system.clone(),
+        )?;
         // Starting at 1 will skip the first round key which is the same as
         // the secret key.
         for round in 1_usize..=10_usize {
             // Step 1
             let after_substitute_bytes =
                 aes_circuit::substitute_bytes(&after_add_round_key, &lookup_table)?;
+            helpers::debug_constraint_system_status(
+                &format!("After substituting bytes in round {round}"),
+                constraint_system.clone(),
+            )?;
             // Step 2
-            let after_shift_rows = aes_circuit::shift_rows(&after_substitute_bytes, cs.clone())
-                .to_anyhow("Error shifting rows")?;
+            let after_shift_rows =
+                aes_circuit::shift_rows(&after_substitute_bytes, constraint_system.clone())
+                    .to_anyhow("Error shifting rows")?;
+            helpers::debug_constraint_system_status(
+                &format!("After shifting rows in round {round}"),
+                constraint_system.clone(),
+            )?;
             // Step 3
             // TODO: This mix columns operation is being done on the last round, but it's not taken into
             // account. To increase performance we could move this inside the if statement below.
-            let after_mix_columns = aes_circuit::mix_columns(&after_shift_rows, cs.clone())
-                .to_anyhow("Error mixing columns when encrypting")?;
+            let after_mix_columns =
+                aes_circuit::mix_columns(&after_shift_rows, constraint_system.clone())
+                    .to_anyhow("Error mixing columns when encrypting")?;
+            helpers::debug_constraint_system_status(
+                &format!("After mixing columns in round {round}"),
+                constraint_system.clone(),
+            )?;
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
             if round < 10_usize {
@@ -234,6 +274,10 @@ fn encrypt_and_generate_constraints(
                         .to_anyhow(&format!("Error getting round key in round {round}"))?,
                 )?;
             }
+            helpers::debug_constraint_system_status(
+                &format!("After adding round key in round {round}"),
+                constraint_system.clone(),
+            )?;
         }
         let mut ciphertext_chunk = vec![];
 
@@ -251,6 +295,10 @@ fn encrypt_and_generate_constraints(
                 .to_anyhow("Error getting ciphertext byte")?,
         )?;
     }
+    helpers::debug_constraint_system_status(
+        "After enforcing that the obtained ciphertext is equal to the given one",
+        constraint_system,
+    )?;
 
     Ok(())
 }
