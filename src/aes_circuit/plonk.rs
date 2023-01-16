@@ -42,8 +42,28 @@ impl Circuit for AESEncryptionCircuit {
         // Lookup table
 
         // Key derivation
+        let round_keys: [Witness; 11] = Self::derive_keys(secret_key)?;
 
-        // 10-round AES encryption
+        // Add round 0 key
+        let mut after_add_round_key: Witness = Self::add_round_key(message, round_keys[0])?;
+        // 10-round AES encryption (we skip the first one because we already added in round 0)
+        for (round_number, round_key) in round_keys.iter().enumerate().skip(1) {
+            // SubBytes
+            let after_sub_bytes = Self::sub_bytes(after_add_round_key)?;
+            // ShiftRows
+            let after_shift_rows = Self::shift_rows(after_sub_bytes)?;
+            // MixColumns
+            let round_is_the_last_one = composer.append_witness(BlsScalar::from((round_number == 10).try_into().unwrap_or(0_u64)));
+            // FIXME: Do we need to enforce this?
+            composer.component_boolean(round_is_the_last_one);
+            let after_mix_columns = composer.component_select(round_is_the_last_one, after_shift_rows, Self::mix_columns(after_shift_rows)?);
+            // AddRoundKey
+            after_add_round_key = Self::add_round_key(after_mix_columns, *round_key)?;
+        }
+
+        let computed_ciphertext = after_add_round_key;
+        // Enforce that the ciphertext is the result of the encryption
+        composer.assert_equal(ciphertext, computed_ciphertext);
 
         Ok(())
     }
@@ -64,5 +84,32 @@ impl Default for AESEncryptionCircuit {
             secret_key: key,
             ciphertext,
         }
+    }
+}
+
+impl AESEncryptionCircuit {
+    fn add_round_key(input: Witness, key: Witness) -> Result<Witness, PlonkError> {
+        let output: Witness;
+        todo!()
+    }
+    
+    fn sub_bytes(input: Witness) -> Result<Witness, PlonkError> {
+        let output: Witness;
+        todo!()
+    }
+
+    fn shift_rows(input: Witness) -> Result<Witness, PlonkError> {
+        let output: Witness;
+        todo!()
+    }
+
+    fn mix_columns(input: Witness) -> Result<Witness, PlonkError> {
+        let output: Witness;
+        todo!()
+    }
+
+    fn derive_keys(secret_key: Witness) -> Result<[Witness; 11], PlonkError> {
+        let keys: [Witness; 11];
+        todo!()
     }
 }
