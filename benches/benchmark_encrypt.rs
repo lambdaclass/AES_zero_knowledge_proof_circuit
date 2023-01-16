@@ -18,10 +18,10 @@ fn primitive_encrypt(message: &[u8], primitive_secret_key: &aes::Aes128) -> Vec<
 fn sample_message(amount_of_bytes: usize) -> Vec<u8> {
     let mut message = vec![0_u8; amount_of_bytes];
 
-    let mut random_message: [u8; 16] = rand::random();
-    for (raw_message_byte, random_message_byte) in message.iter_mut().zip(random_message) {
+    let mut _random_message: [u8; 16] = rand::random();
+    for (raw_message_byte, random_message_byte) in message.iter_mut().zip(_random_message) {
         *raw_message_byte = random_message_byte;
-        random_message = rand::random();
+        _random_message = rand::random();
     }
 
     message
