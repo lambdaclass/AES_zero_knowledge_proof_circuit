@@ -55,10 +55,16 @@ impl Circuit for AESEncryptionCircuit {
             // ShiftRows
             let after_shift_rows = Self::shift_rows(after_sub_bytes)?;
             // MixColumns
-            let round_is_the_last_one = composer.append_witness(BlsScalar::from((round_number == 10).try_into().unwrap_or(0_u64)));
+            let round_is_the_last_one = composer.append_witness(BlsScalar::from(
+                (round_number == 10).try_into().unwrap_or(0_u64),
+            ));
             // FIXME: Do we need to enforce this?
             composer.component_boolean(round_is_the_last_one);
-            let after_mix_columns = composer.component_select(round_is_the_last_one, after_shift_rows, Self::mix_columns(after_shift_rows)?);
+            let after_mix_columns = composer.component_select(
+                round_is_the_last_one,
+                after_shift_rows,
+                Self::mix_columns(after_shift_rows)?,
+            );
             // AddRoundKey
             after_add_round_key = Self::add_round_key(after_mix_columns, *round_key)?;
         }
@@ -94,7 +100,7 @@ impl AESEncryptionCircuit {
         let output: Witness;
         todo!()
     }
-    
+
     fn sub_bytes(input: Witness) -> Result<Witness, PlonkError> {
         let output: Witness;
         todo!()
