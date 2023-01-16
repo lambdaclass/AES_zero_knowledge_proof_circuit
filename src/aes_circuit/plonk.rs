@@ -1,5 +1,7 @@
 use crate::helpers;
-use dusk_plonk::prelude::{BlsScalar, Circuit};
+use dusk_plonk::prelude::{BlsScalar, Circuit, Witness};
+
+type PlonkError = dusk_plonk::prelude::Error;
 
 /// This circuit shows that `ciphertext` is the result of encrypting `message` using AES with `secret_key` as the encryption key.
 pub struct AESEncryptionCircuit {
@@ -16,14 +18,14 @@ const R2: BlsScalar = BlsScalar([
     0x0748d9d99f59ff11,
 ]);
 
-fn bls_scalar_from_16_bytes(bytes: &[u8; 16]) -> Result<BlsScalar, dusk_plonk::prelude::Error> {
+fn bls_scalar_from_16_bytes(bytes: &[u8; 16]) -> Result<BlsScalar, PlonkError> {
     let mut new_bytes = [0_u64; 4];
 
     for (old_chunks, new_chunks) in bytes.chunks(8).zip(new_bytes.iter_mut()) {
         *new_chunks = u64::from_le_bytes(
             old_chunks
                 .try_into()
-                .map_err(|_e| dusk_plonk::prelude::Error::BlsScalarMalformed)?,
+                .map_err(|_e| PlonkError::BlsScalarMalformed)?,
         );
     }
 
@@ -31,7 +33,7 @@ fn bls_scalar_from_16_bytes(bytes: &[u8; 16]) -> Result<BlsScalar, dusk_plonk::p
 }
 
 impl Circuit for AESEncryptionCircuit {
-    fn circuit<C>(&self, composer: &mut C) -> Result<(), dusk_plonk::prelude::Error>
+    fn circuit<C>(&self, composer: &mut C) -> Result<(), PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
