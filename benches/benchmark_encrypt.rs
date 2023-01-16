@@ -3,7 +3,9 @@ use anyhow::{ensure, Result};
 use criterion::Criterion;
 
 // TODO: Support non-multiple of 16 bytes messages.
-fn primitive_encrypt(message: &[u8], primitive_secret_key: &aes::Aes128) -> Vec<u8> {
+fn primitive_encrypt(message: &[u8], key: &[u8]) -> Vec<u8> {
+    let primitive_secret_key =
+        aes::Aes128::new(digest::generic_array::GenericArray::from_slice(key));
     let mut encrypted_message: Vec<u8> = Vec::new();
 
     message.chunks_exact(16).for_each(|chunk| {
@@ -36,10 +38,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     let (proving_key, _verifying_key) =
         poc_encryption_proof::synthesize_keys(message.len()).unwrap();
     let key: [u8; 16] = rand::random();
-
-    let primitive_secret_key =
-        aes::Aes128::new(digest::generic_array::GenericArray::from_slice(&key));
-    let ciphertext = primitive_encrypt(&message, &primitive_secret_key);
+    let ciphertext = primitive_encrypt(&message, &key);
 
     let mut group = c.benchmark_group("Encryption");
     group.sample_size(100);
