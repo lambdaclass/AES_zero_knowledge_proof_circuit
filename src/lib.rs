@@ -40,6 +40,7 @@
 
 pub mod aes;
 pub mod aes_circuit;
+pub use aes_circuit::{marlin, plonk};
 pub mod helpers;
 pub mod ops;
 
@@ -210,13 +211,13 @@ fn encrypt_and_generate_constraints(
     constraint_system: ConstraintSystemRef<ConstraintF>,
 ) -> Result<()> {
     let mut computed_ciphertext: Vec<UInt8Gadget> = Vec::new();
-    let lookup_table = aes_circuit::lookup_table(constraint_system.clone())?;
+    let lookup_table = aes_circuit::marlin::lookup_table(constraint_system.clone())?;
     helpers::debug_constraint_system_status(
         "After generating the lookup table",
         constraint_system.clone(),
     )?;
     let round_keys =
-        aes_circuit::derive_keys(secret_key, &lookup_table, constraint_system.clone())?;
+        aes_circuit::marlin::derive_keys(secret_key, &lookup_table, constraint_system.clone())?;
     helpers::debug_constraint_system_status(
         "After deriving the round keys",
         constraint_system.clone(),
@@ -224,7 +225,7 @@ fn encrypt_and_generate_constraints(
 
     for block in message.chunks(16) {
         // Step 0
-        let mut after_add_round_key = aes_circuit::add_round_key(block, secret_key)?;
+        let mut after_add_round_key = aes_circuit::marlin::add_round_key(block, secret_key)?;
         helpers::debug_constraint_system_status(
             "After adding round key in round 0",
             constraint_system.clone(),
@@ -234,14 +235,14 @@ fn encrypt_and_generate_constraints(
         for round in 1_usize..=10_usize {
             // Step 1
             let after_substitute_bytes =
-                aes_circuit::substitute_bytes(&after_add_round_key, &lookup_table)?;
+                aes_circuit::marlin::substitute_bytes(&after_add_round_key, &lookup_table)?;
             helpers::debug_constraint_system_status(
                 &format!("After substituting bytes in round {round}"),
                 constraint_system.clone(),
             )?;
             // Step 2
             let after_shift_rows =
-                aes_circuit::shift_rows(&after_substitute_bytes, constraint_system.clone())
+                aes_circuit::marlin::shift_rows(&after_substitute_bytes, constraint_system.clone())
                     .to_anyhow("Error shifting rows")?;
             helpers::debug_constraint_system_status(
                 &format!("After shifting rows in round {round}"),
@@ -251,7 +252,7 @@ fn encrypt_and_generate_constraints(
             // TODO: This mix columns operation is being done on the last round, but it's not taken into
             // account. To increase performance we could move this inside the if statement below.
             let after_mix_columns =
-                aes_circuit::mix_columns(&after_shift_rows, constraint_system.clone())
+                aes_circuit::marlin::mix_columns(&after_shift_rows, constraint_system.clone())
                     .to_anyhow("Error mixing columns when encrypting")?;
             helpers::debug_constraint_system_status(
                 &format!("After mixing columns in round {round}"),
@@ -260,14 +261,14 @@ fn encrypt_and_generate_constraints(
             // Step 4
             // This ciphertext should represent the next round plaintext and use the round key.
             if round < 10_usize {
-                after_add_round_key = aes_circuit::add_round_key(
+                after_add_round_key = aes_circuit::marlin::add_round_key(
                     &after_mix_columns,
                     round_keys
                         .get(round)
                         .to_anyhow(&format!("Error getting round key in round {round}"))?,
                 )?;
             } else {
-                after_add_round_key = aes_circuit::add_round_key(
+                after_add_round_key = aes_circuit::marlin::add_round_key(
                     &after_shift_rows,
                     round_keys
                         .get(round)
