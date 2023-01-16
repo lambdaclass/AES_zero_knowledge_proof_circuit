@@ -41,7 +41,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     let ciphertext = primitive_encrypt(&message, &key);
 
     let mut group = c.benchmark_group("Encryption");
-    group.sample_size(100);
+    group.sample_size(10);
     group.bench_function(format!("{amount_of_bytes}_message_encryption"), |b| {
         b.iter(|| {
             poc_encryption_proof::encrypt(&message, &key, &ciphertext, proving_key.clone())
