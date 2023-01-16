@@ -148,8 +148,7 @@ fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
 pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     // This parameters support encrypting messages up to 1kb length.
-    let universal_srs =
-        simpleworks::marlin::generate_universal_srs(866_944, 513, 4_062_064, rng)?;
+    let universal_srs = simpleworks::marlin::generate_universal_srs(866_944, 513, 4_062_064, rng)?;
     let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
 
     let default_message_input = vec![0_u8; plaintext_length];
