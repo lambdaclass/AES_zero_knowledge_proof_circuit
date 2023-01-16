@@ -106,8 +106,7 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Witness;
-        todo!()
+        Ok(composer.append_logic_xor(input, key, 128))
     }
 
     fn sub_bytes<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
