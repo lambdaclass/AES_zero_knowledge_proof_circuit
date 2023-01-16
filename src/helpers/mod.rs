@@ -81,3 +81,31 @@ pub fn debug_constraint_system_status(
     );
     Ok(())
 }
+
+pub fn sample_message(amount_of_bytes: usize) -> Vec<u8> {
+    let mut message = vec![0_u8; amount_of_bytes];
+
+    let mut _random_message: [u8; 16] = rand::random();
+    for (raw_message_byte, random_message_byte) in message.iter_mut().zip(_random_message) {
+        *raw_message_byte = random_message_byte;
+        _random_message = rand::random();
+    }
+
+    message
+}
+
+// TODO: Support non-multiple of 16 bytes messages.
+pub fn primitive_encrypt(message: &[u8], key: &[u8]) -> Vec<u8> {
+    let primitive_secret_key = <aes::Aes128 as aes::cipher::KeyInit>::new(
+        digest::generic_array::GenericArray::from_slice(key),
+    );
+    let mut encrypted_message: Vec<u8> = Vec::new();
+
+    message.chunks_exact(16).for_each(|chunk| {
+        let mut block = digest::generic_array::GenericArray::clone_from_slice(chunk);
+        aes::cipher::BlockEncrypt::encrypt_block(&primitive_secret_key, &mut block);
+        encrypted_message.extend_from_slice(&block);
+    });
+
+    encrypted_message
+}
