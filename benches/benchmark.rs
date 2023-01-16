@@ -8,8 +8,6 @@ fn run_benchmarks(c: &mut Criterion) {
     benchmark_encrypt::encrypt_message_with_bytes(c, 16).unwrap();
     benchmark_encrypt::encrypt_message_with_bytes(c, 32).unwrap();
     benchmark_encrypt::encrypt_message_with_bytes(c, 64).unwrap();
-    benchmark_encrypt::encrypt_message_with_bytes(c, 128).unwrap();
-    benchmark_encrypt::encrypt_message_with_bytes(c, 1024).unwrap();
 }
 
 #[cfg(feature = "benchmark_flamegraph")]
