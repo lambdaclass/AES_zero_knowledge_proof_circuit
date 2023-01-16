@@ -694,7 +694,7 @@ pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{aes_circuit, marlin};
+    use crate::marlin;
     use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
