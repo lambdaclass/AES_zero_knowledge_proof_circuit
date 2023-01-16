@@ -44,29 +44,31 @@ impl Circuit for AESEncryptionCircuit {
         // Lookup table
 
         // Key derivation
-        let round_keys: [Witness; 11] = Self::derive_keys(secret_key)?;
+        let round_keys: [Witness; 11] = Self::derive_keys(secret_key, composer)?;
 
         // Add round 0 key
-        let mut after_add_round_key: Witness = Self::add_round_key(message, round_keys[0])?;
+        let mut after_add_round_key: Witness =
+            Self::add_round_key(message, round_keys[0], composer)?;
         // 10-round AES encryption (we skip the first one because we already added in round 0)
         for (round_number, round_key) in round_keys.iter().enumerate().skip(1) {
             // SubBytes
-            let after_sub_bytes = Self::sub_bytes(after_add_round_key)?;
+            let after_sub_bytes = Self::sub_bytes(after_add_round_key, composer)?;
+
             // ShiftRows
-            let after_shift_rows = Self::shift_rows(after_sub_bytes)?;
+            let after_shift_rows = Self::shift_rows(after_sub_bytes, composer)?;
+
             // MixColumns
-            let round_is_the_last_one = composer.append_witness(BlsScalar::from(
+            let condition = composer.append_witness(BlsScalar::from(
                 (round_number == 10).try_into().unwrap_or(0_u64),
             ));
             // FIXME: Do we need to enforce this?
-            composer.component_boolean(round_is_the_last_one);
-            let after_mix_columns = composer.component_select(
-                round_is_the_last_one,
-                after_shift_rows,
-                Self::mix_columns(after_shift_rows)?,
-            );
+            composer.component_boolean(condition);
+            let true_value = after_shift_rows;
+            let false_value = Self::mix_columns(after_shift_rows, composer)?;
+            let after_mix_columns = composer.component_select(condition, true_value, false_value);
+
             // AddRoundKey
-            after_add_round_key = Self::add_round_key(after_mix_columns, *round_key)?;
+            after_add_round_key = Self::add_round_key(after_mix_columns, *round_key, composer)?;
         }
 
         let computed_ciphertext = after_add_round_key;
@@ -96,27 +98,46 @@ impl Default for AESEncryptionCircuit {
 }
 
 impl AESEncryptionCircuit {
-    fn add_round_key(input: Witness, key: Witness) -> Result<Witness, PlonkError> {
+    fn add_round_key<C>(
+        input: Witness,
+        key: Witness,
+        composer: &mut C,
+    ) -> Result<Witness, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
         let output: Witness;
         todo!()
     }
 
-    fn sub_bytes(input: Witness) -> Result<Witness, PlonkError> {
+    fn sub_bytes<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
         let output: Witness;
         todo!()
     }
 
-    fn shift_rows(input: Witness) -> Result<Witness, PlonkError> {
+    fn shift_rows<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
         let output: Witness;
         todo!()
     }
 
-    fn mix_columns(input: Witness) -> Result<Witness, PlonkError> {
+    fn mix_columns<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
         let output: Witness;
         todo!()
     }
 
-    fn derive_keys(secret_key: Witness) -> Result<[Witness; 11], PlonkError> {
+    fn derive_keys<C>(secret_key: Witness, composer: &mut C) -> Result<[Witness; 11], PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
         let keys: [Witness; 11];
         todo!()
     }
