@@ -249,8 +249,6 @@ fn encrypt_and_generate_constraints(
                 constraint_system.clone(),
             )?;
             // Step 3
-            // TODO: This mix columns operation is being done on the last round, but it's not taken into
-            // account. To increase performance we could move this inside the if statement below.
             let after_mix_columns =
                 aes_circuit::mix_columns(&after_shift_rows, constraint_system.clone())
                     .to_anyhow("Error mixing columns when encrypting")?;
@@ -259,22 +257,12 @@ fn encrypt_and_generate_constraints(
                 constraint_system.clone(),
             )?;
             // Step 4
-            // This ciphertext should represent the next round plaintext and use the round key.
-            if round < 10_usize {
-                after_add_round_key = aes_circuit::add_round_key(
-                    &after_mix_columns,
-                    round_keys
-                        .get(round)
-                        .to_anyhow(&format!("Error getting round key in round {round}"))?,
-                )?;
-            } else {
-                after_add_round_key = aes_circuit::add_round_key(
-                    &after_shift_rows,
-                    round_keys
-                        .get(round)
-                        .to_anyhow(&format!("Error getting round key in round {round}"))?,
-                )?;
-            }
+            after_add_round_key = aes_circuit::add_round_key(
+                &after_mix_columns,
+                round_keys
+                    .get(round)
+                    .to_anyhow(&format!("Error getting round key in round {round}"))?,
+            )?;
             helpers::debug_constraint_system_status(
                 &format!("After adding round key in round {round}"),
                 constraint_system.clone(),
