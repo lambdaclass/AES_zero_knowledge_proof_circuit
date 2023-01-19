@@ -203,8 +203,62 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Vec<Witness>;
-        todo!()
+        debug!(
+            "Constraints before mixing columns {}",
+            composer.constraints()
+        );
+
+        let mut mixed_input: Vec<Witness> = Vec::with_capacity(input.len());
+        for (i, column) in input.chunks(4).enumerate() {
+            let column_ret = Self::gmix_column(&column, composer)?;
+
+            mixed_input[i * 4] = column_ret[0];
+            mixed_input[i * 4 + 1] = column_ret[1];
+            mixed_input[i * 4 + 2] = column_ret[2];
+            mixed_input[i * 4 + 3] = column_ret[3];
+        }
+
+        debug!(
+            "Constraints after mixing columns {}",
+            composer.constraints()
+        );
+
+        Ok(mixed_input)
+    }
+
+    fn gmix_column<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
+        let mut b: Vec<Witness> = Vec::new();
+        /* The array 'a' is simply a copy of the input array 'r'
+         * The array 'b' is each element of the array 'a' multiplied by 2
+         * in Rijndael's Galois field
+         * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
+
+        let a_hundred_and_twenty_eight = composer.append_constant(BlsScalar::from(0x80_u8 as u64));
+        let two = composer.append_constant(BlsScalar::from(0x02_u8 as u64));
+        let galois_adjustment = composer.append_constant(BlsScalar::from(0x1B_u8 as u64));
+        for (i, c) in input.iter().enumerate() {
+            // c & 0x80
+            let overflowed = composer.append_logic_and(*c, a_hundred_and_twenty_eight, 8); /* arithmetic right shift, thus shifting in either zeros or ones */
+            // (c & 0x80) * 0x1B
+            let galois_adjustment_to_apply =
+                composer.gate_mul(Constraint::new().mult(1).a(overflowed).b(galois_adjustment));
+            // c * 0x02
+            let c_times_two = composer.gate_mul(Constraint::new().mult(1).a(*c).b(two));
+            // (c & 0x80) * 0x1B ^ c * 0x02
+            let b_i = composer.append_logic_xor(galois_adjustment_to_apply, c_times_two, 8);
+            b[i] = b_i; /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+            /* Rijndael's Galois field */
+        }
+
+        Ok(vec![
+            kary_xor(&[b[0], input[3], input[2], b[1], input[1]], composer)?,
+            kary_xor(&[b[1], input[0], input[3], b[2], input[2]], composer)?,
+            kary_xor(&[b[2], input[1], input[0], b[3], input[3]], composer)?,
+            kary_xor(&[b[3], input[2], input[1], b[0], input[0]], composer)?,
+        ])
     }
 
     fn derive_keys<C>(
