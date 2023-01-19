@@ -211,9 +211,12 @@ impl AESEncryptionCircuit {
             composer.constraints()
         );
 
-        let mut mixed_input: Vec<Witness> = Vec::with_capacity(input.len());
+        let mut mixed_input: Vec<Witness> = (0..input.len())
+            .into_iter()
+            .map(|_| composer.append_constant(BlsScalar::zero()))
+            .collect();
         for (i, column) in input.chunks(4).enumerate() {
-            let column_ret = Self::gmix_column(&column, composer)?;
+            let column_ret = Self::gmix_column(column, composer)?;
 
             mixed_input[i * 4] = column_ret[0];
             mixed_input[i * 4 + 1] = column_ret[1];
@@ -233,7 +236,7 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let mut b: Vec<Witness> = Vec::new();
+        let mut b: Vec<Witness> = Vec::with_capacity(input.len());
         /* The array 'a' is simply a copy of the input array 'r'
          * The array 'b' is each element of the array 'a' multiplied by 2
          * in Rijndael's Galois field
@@ -242,7 +245,7 @@ impl AESEncryptionCircuit {
         let a_hundred_and_twenty_eight = composer.append_constant(BlsScalar::from(0x80_u8 as u64));
         let two = composer.append_constant(BlsScalar::from(0x02_u8 as u64));
         let galois_adjustment = composer.append_constant(BlsScalar::from(0x1B_u8 as u64));
-        for (i, c) in input.iter().enumerate() {
+        for c in input.iter() {
             // c & 0x80
             let overflowed = composer.append_logic_and(*c, a_hundred_and_twenty_eight, 8); /* arithmetic right shift, thus shifting in either zeros or ones */
             // (c & 0x80) * 0x1B
@@ -252,7 +255,7 @@ impl AESEncryptionCircuit {
             let c_times_two = composer.gate_mul(Constraint::new().mult(1).a(*c).b(two));
             // (c & 0x80) * 0x1B ^ c * 0x02
             let b_i = composer.append_logic_xor(galois_adjustment_to_apply, c_times_two, 8);
-            b[i] = b_i; /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
+            b.push(b_i); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
             /* Rijndael's Galois field */
         }
 
@@ -301,4 +304,151 @@ where
     }
 
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use dusk_plonk::prelude::{BlsScalar, Builder, Composer, Witness};
+
+    use super::AESEncryptionCircuit;
+
+    fn to_witness_vec<C>(input: &[u8], composer: &mut C) -> Vec<Witness>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
+        input
+            .iter()
+            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .collect()
+    }
+
+    fn from_witness_vec<C>(input: &[Witness], composer: &mut C) -> Vec<BlsScalar>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
+        input.into_iter().map(|w| composer[*w]).collect()
+    }
+
+    #[test]
+    fn test_add_round_key() {
+        let mut composer = Builder::uninitialized(100);
+
+        let message: Vec<Witness> = to_witness_vec(
+            &[
+                0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
+                0x07, 0x34,
+            ],
+            &mut composer,
+        );
+
+        let expected_after_add_round_key = to_witness_vec(
+            &[
+                0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b, 0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8,
+                0x48, 0x08,
+            ],
+            &mut composer,
+        );
+
+        let round_key: Vec<Witness> = to_witness_vec(
+            &[
+                0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                0x4f, 0x3c,
+            ],
+            &mut composer,
+        );
+
+        let after_add_round_key =
+            AESEncryptionCircuit::add_round_key(&message, &round_key, &mut composer).unwrap();
+
+        assert_eq!(
+            from_witness_vec(&after_add_round_key, &mut composer),
+            from_witness_vec(&expected_after_add_round_key, &mut composer)
+        );
+    }
+
+    #[test]
+    #[ignore = "unimplemented"]
+    fn test_substitute_bytes() {
+        let mut composer = Builder::uninitialized(100);
+
+        let message = to_witness_vec(
+            &[
+                0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b, 0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8,
+                0x48, 0x08,
+            ],
+            &mut composer,
+        );
+
+        let expected_after_substitute_bytes = to_witness_vec(
+            &[
+                0xd4, 0x27, 0x11, 0xae, 0xe0, 0xbf, 0x98, 0xf1, 0xb8, 0xb4, 0x5d, 0xe5, 0x1e, 0x41,
+                0x52, 0x30,
+            ],
+            &mut composer,
+        );
+
+        let after_substitute_bytes =
+            AESEncryptionCircuit::sub_bytes(&message, &mut composer).unwrap();
+
+        assert_eq!(
+            from_witness_vec(&after_substitute_bytes, &mut composer),
+            from_witness_vec(&expected_after_substitute_bytes, &mut composer)
+        );
+    }
+
+    #[test]
+    fn test_shift_rows() {
+        let mut composer = Builder::uninitialized(100);
+
+        let message: Vec<Witness> = to_witness_vec(
+            &[
+                0xd4, 0x27, 0x11, 0xae, 0xe0, 0xbf, 0x98, 0xf1, 0xb8, 0xb4, 0x5d, 0xe5, 0x1e, 0x41,
+                0x52, 0x30,
+            ],
+            &mut composer,
+        );
+
+        let expected_after_shift_rows = to_witness_vec(
+            &[
+                0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
+                0x98, 0xe5,
+            ],
+            &mut composer,
+        );
+
+        let after_shift_rows = AESEncryptionCircuit::shift_rows(&message, &mut composer).unwrap();
+
+        assert_eq!(
+            from_witness_vec(&after_shift_rows, &mut composer),
+            from_witness_vec(&expected_after_shift_rows, &mut composer)
+        );
+    }
+
+    #[test]
+    fn test_mix_columns() {
+        let mut composer = Builder::uninitialized(100);
+
+        let message: Vec<Witness> = to_witness_vec(
+            &[
+                0xd4, 0xbf, 0x5d, 0x30, 0xe0, 0xb4, 0x52, 0xae, 0xb8, 0x41, 0x11, 0xf1, 0x1e, 0x27,
+                0x98, 0xe5,
+            ],
+            &mut composer,
+        );
+
+        let expected_after_mix_columns: Vec<Witness> = to_witness_vec(
+            &[
+                0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a, 0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06,
+                0x26, 0x4c,
+            ],
+            &mut composer,
+        );
+
+        let mixed_columns = AESEncryptionCircuit::mix_columns(&message, &mut composer).unwrap();
+
+        assert_eq!(
+            from_witness_vec(&mixed_columns, &mut composer),
+            from_witness_vec(&expected_after_mix_columns, &mut composer),
+        );
+    }
 }
