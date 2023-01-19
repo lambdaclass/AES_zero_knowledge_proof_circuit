@@ -11,28 +11,6 @@ pub struct AESEncryptionCircuit {
     ciphertext: Vec<u8>,
 }
 
-/// R^2 = 2^512 mod q
-const R2: BlsScalar = BlsScalar([
-    0xc999e990f3f29c6d,
-    0x2b6cedcb87925c23,
-    0x05d314967254398f,
-    0x0748d9d99f59ff11,
-]);
-
-fn bls_scalar_from_16_bytes(bytes: &[u8; 16]) -> Result<BlsScalar, PlonkError> {
-    let mut new_bytes = [0_u64; 4];
-
-    for (old_chunks, new_chunks) in bytes.chunks(8).zip(new_bytes.iter_mut()) {
-        *new_chunks = u64::from_le_bytes(
-            old_chunks
-                .try_into()
-                .map_err(|_e| PlonkError::BlsScalarMalformed)?,
-        );
-    }
-
-    Ok(BlsScalar(new_bytes) * R2)
-}
-
 impl Circuit for AESEncryptionCircuit {
     fn circuit<C>(&self, composer: &mut C) -> Result<(), PlonkError>
     where
@@ -41,17 +19,17 @@ impl Circuit for AESEncryptionCircuit {
         let message_bytes = self
             .message
             .iter()
-            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .map(|byte| composer.append_witness(BlsScalar::from(u64::from(*byte))))
             .collect::<Vec<_>>();
         let secret_key_bytes = self
             .secret_key
             .iter()
-            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .map(|byte| composer.append_witness(BlsScalar::from(u64::from(*byte))))
             .collect::<Vec<_>>();
         let ciphertext_bytes = self
             .ciphertext
             .iter()
-            .map(|byte| composer.append_public(BlsScalar::from(*byte as u64)))
+            .map(|byte| composer.append_public(BlsScalar::from(u64::from(*byte))))
             .collect::<Vec<_>>();
 
         // Lookup table
@@ -249,9 +227,9 @@ impl AESEncryptionCircuit {
          * in Rijndael's Galois field
          * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
-        let a_hundred_and_twenty_eight = composer.append_constant(BlsScalar::from(0x80_u8 as u64));
-        let two = composer.append_constant(BlsScalar::from(0x02_u8 as u64));
-        let galois_adjustment = composer.append_constant(BlsScalar::from(0x1B_u8 as u64));
+        let a_hundred_and_twenty_eight = composer.append_constant(BlsScalar::from(0x80_u64));
+        let two = composer.append_constant(BlsScalar::from(0x02_u64));
+        let galois_adjustment = composer.append_constant(BlsScalar::from(0x1B_u64));
         for c in input.iter() {
             // c & 0x80
             let overflowed = composer.append_logic_and(*c, a_hundred_and_twenty_eight, 8); /* arithmetic right shift, thus shifting in either zeros or ones */
@@ -296,262 +274,262 @@ impl AESEncryptionCircuit {
     {
         let mut ret = vec![];
 
-        ret.push(composer.append_constant(BlsScalar::from(0x63_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x77_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x30_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x01_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x67_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x76_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x82_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x59_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x47_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAD_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x72_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFD_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x93_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x26_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x36_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x34_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x71_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x31_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x15_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x04_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x23_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x18_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x96_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x05_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x07_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x12_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x80_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xEB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x27_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x75_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x09_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x83_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x52_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x29_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x84_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x53_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x00_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xED_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x20_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x39_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x58_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xEF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x43_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x33_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x85_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x45_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x02_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x50_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x51_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x40_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x92_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x38_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x21_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x10_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xFF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCD_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x13_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xEC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x97_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x44_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x17_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x64_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x19_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x73_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x60_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x81_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x22_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x90_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x88_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x46_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xEE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x14_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x32_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x49_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x06_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x24_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x5C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC2_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD3_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAC_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x62_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x91_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x95_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x79_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE7_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x37_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x6C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x56_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xEA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x65_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x7A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xAE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x08_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBA_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x78_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x25_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB4_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDD_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x74_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x4B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBD_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8A_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x70_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x3E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB5_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x66_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x48_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x03_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x61_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x35_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x57_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x86_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xC1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xF8_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x98_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x11_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x69_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xD9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x94_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x9B_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x1E_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x87_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE9_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xCE_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x55_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x28_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xDF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x8C_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xA1_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x89_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBF_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xE6_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x42_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x68_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x41_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x99_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x2D_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x0F_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xB0_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x54_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0xBB_u8 as u64)));
-        ret.push(composer.append_constant(BlsScalar::from(0x16_u8 as u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x63_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x77_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x30_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x01_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x67_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x76_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x82_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x59_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x47_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAD_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x72_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFD_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x93_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x26_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x36_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x34_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x71_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x31_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x15_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x04_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x23_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x18_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x96_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x05_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x07_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x12_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x80_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xEB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x27_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x75_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x09_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x83_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x52_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x29_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x84_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x53_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x00_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xED_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x20_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x39_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x58_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xEF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x43_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x33_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x85_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x45_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x02_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x50_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x51_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x40_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x92_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x38_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x21_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x10_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xFF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCD_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x13_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xEC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x97_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x44_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x17_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x64_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x19_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x73_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x60_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x81_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x22_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x90_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x88_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x46_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xEE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x14_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x32_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x49_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x06_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x24_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x5C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC2_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD3_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAC_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x62_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x91_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x95_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x79_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE7_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x37_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x6C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x56_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xEA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x65_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x7A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xAE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x08_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBA_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x78_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x25_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB4_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDD_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x74_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x4B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBD_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8A_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x70_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x3E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB5_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x66_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x48_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x03_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x61_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x35_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x57_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x86_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xC1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xF8_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x98_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x11_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x69_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xD9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x94_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x9B_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x1E_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x87_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE9_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xCE_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x55_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x28_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xDF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x8C_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xA1_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x89_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBF_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xE6_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x42_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x68_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x41_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x99_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x2D_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x0F_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xB0_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x54_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0xBB_u64)));
+        ret.push(composer.append_constant(BlsScalar::from(0x16_u64)));
 
         Ok(ret)
     }
@@ -590,13 +568,13 @@ mod tests {
 
     use super::AESEncryptionCircuit;
 
-    fn to_witness_vec<C>(input: &[u8], composer: &mut C) -> Vec<Witness>
+    fn to_witness_vec<C>(input: &[u64], composer: &mut C) -> Vec<Witness>
     where
         C: dusk_plonk::prelude::Composer,
     {
         input
             .iter()
-            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .map(|byte| composer.append_witness(BlsScalar::from(*byte)))
             .collect()
     }
 
@@ -604,7 +582,7 @@ mod tests {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        input.into_iter().map(|w| composer[*w]).collect()
+        input.iter().map(|w| composer[*w]).collect()
     }
 
     #[test]
