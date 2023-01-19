@@ -1,5 +1,6 @@
 use crate::helpers;
 use dusk_plonk::prelude::{BlsScalar, Circuit, Witness};
+use log::debug;
 
 type PlonkError = dusk_plonk::prelude::Error;
 
@@ -150,8 +151,52 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Vec<Witness>;
-        todo!()
+        debug!("Constraints before shifting rows {}", composer.constraints());
+
+        // Turn the bytes into the 4x4 AES state matrix.
+        // The matrix is represented by a 2D array,
+        // where each array is a row.
+        // That is, let's suppose that the flattened_bytes variable
+        // is formed by the bytes
+        // [b0, ..., b15]
+        // Then the AES state matrix will look like this:
+        // b0, b4, b8, b12,
+        // b1, b5, b9, b13,
+        // b2, b6, b10, b14,
+        // b3, b7, b11, b15
+        // We shift each row, then return back the result as the flattened version.
+
+        let first_row = [input[0], input[4], input[8], input[12]];
+        let second_row = [input[1], input[5], input[9], input[13]];
+        let third_row = [input[2], input[6], input[10], input[14]];
+        let fourth_row = [input[3], input[7], input[11], input[15]];
+
+        let rotated_second_row = rotate_left(&second_row, 1, composer);
+        let rotated_third_row = rotate_left(&third_row, 2, composer);
+        let rotated_fourth_row = rotate_left(&fourth_row, 3, composer);
+
+        let output = vec![
+            first_row[0],
+            rotated_second_row[0],
+            rotated_third_row[0],
+            rotated_fourth_row[0],
+            first_row[1],
+            rotated_second_row[1],
+            rotated_third_row[1],
+            rotated_fourth_row[1],
+            first_row[2],
+            rotated_second_row[2],
+            rotated_third_row[2],
+            rotated_fourth_row[2],
+            first_row[3],
+            rotated_second_row[3],
+            rotated_third_row[3],
+            rotated_fourth_row[3],
+        ];
+
+        debug!("Constraints after shifting rows {}", composer.constraints());
+
+        Ok(output)
     }
 
     fn mix_columns<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
@@ -172,4 +217,19 @@ impl AESEncryptionCircuit {
         let keys: [[Witness; 16]; 11];
         todo!()
     }
+}
+
+fn rotate_left<C>(input: &[Witness], positions: usize, composer: &mut C) -> Vec<Witness>
+where
+    C: dusk_plonk::prelude::Composer,
+{
+    let input_len = input.len();
+    let mut output = input.to_vec();
+    output.rotate_left(positions);
+
+    for i in 0..input_len {
+        composer.assert_equal(input[i], output[(i + positions) % input_len])
+    }
+
+    output.to_vec()
 }
