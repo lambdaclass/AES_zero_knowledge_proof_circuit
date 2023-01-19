@@ -5,9 +5,9 @@ type PlonkError = dusk_plonk::prelude::Error;
 
 /// This circuit shows that `ciphertext` is the result of encrypting `message` using AES with `secret_key` as the encryption key.
 pub struct AESEncryptionCircuit {
-    message: [u8; 64],
+    message: Vec<u8>,
     secret_key: [u8; 16],
-    ciphertext: [u8; 64],
+    ciphertext: Vec<u8>,
 }
 
 /// R^2 = 2^512 mod q
@@ -37,26 +37,38 @@ impl Circuit for AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let message = composer.append_witness(BlsScalar::from_bytes_wide(&self.message));
-        let secret_key = composer.append_witness(bls_scalar_from_16_bytes(&self.secret_key)?);
-        let ciphertext = composer.append_public(BlsScalar::from_bytes_wide(&self.ciphertext));
+        let message_bytes = self
+            .message
+            .iter()
+            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .collect::<Vec<_>>();
+        let secret_key_bytes = self
+            .secret_key
+            .iter()
+            .map(|byte| composer.append_witness(BlsScalar::from(*byte as u64)))
+            .collect::<Vec<_>>();
+        let ciphertext_bytes = self
+            .ciphertext
+            .iter()
+            .map(|byte| composer.append_public(BlsScalar::from(*byte as u64)))
+            .collect::<Vec<_>>();
 
         // Lookup table
 
         // Key derivation
-        let round_keys: [Witness; 11] = Self::derive_keys(secret_key, composer)?;
+        let round_keys: [[Witness; 16]; 11] = Self::derive_keys(&secret_key_bytes, composer)?;
 
         //TODO: At the moment we are doing one block encryption. We should do multiple blocks.
         // Add round 0 key
-        let mut after_add_round_key: Witness =
-            Self::add_round_key(message, round_keys[0], composer)?;
+        let mut after_add_round_key =
+            Self::add_round_key(&message_bytes, &round_keys[0], composer)?;
         // 10-round AES encryption (we skip the first one because we already added in round 0)
         for (round_number, round_key) in round_keys.iter().enumerate().skip(1) {
             // SubBytes
-            let after_sub_bytes = Self::sub_bytes(after_add_round_key, composer)?;
+            let after_sub_bytes = Self::sub_bytes(&after_add_round_key, composer)?;
 
             // ShiftRows
-            let after_shift_rows = Self::shift_rows(after_sub_bytes, composer)?;
+            let after_shift_rows = Self::shift_rows(&after_sub_bytes, composer)?;
 
             // MixColumns
             let condition = composer.append_witness(BlsScalar::from(
@@ -64,17 +76,27 @@ impl Circuit for AESEncryptionCircuit {
             ));
             // FIXME: Do we need to enforce this?
             composer.component_boolean(condition);
-            let true_value = after_shift_rows;
-            let false_value = Self::mix_columns(after_shift_rows, composer)?;
-            let after_mix_columns = composer.component_select(condition, true_value, false_value);
+            let true_value = after_shift_rows.clone();
+            let false_value = Self::mix_columns(&after_shift_rows, composer)?;
+            let after_mix_columns = true_value
+                .into_iter()
+                .zip(false_value)
+                .map(|(true_value_byte, false_value_byte)| {
+                    composer.component_select(condition, true_value_byte, false_value_byte)
+                })
+                .collect::<Vec<Witness>>();
 
             // AddRoundKey
-            after_add_round_key = Self::add_round_key(after_mix_columns, *round_key, composer)?;
+            after_add_round_key = Self::add_round_key(&after_mix_columns, round_key, composer)?;
         }
 
         let computed_ciphertext = after_add_round_key;
         // Enforce that the ciphertext is the result of the encryption
-        composer.assert_equal(ciphertext, computed_ciphertext);
+        ciphertext_bytes.iter().zip(computed_ciphertext).for_each(
+            |(ciphertext_byte, computed_ciphertext_byte)| {
+                composer.assert_equal(*ciphertext_byte, computed_ciphertext_byte);
+            },
+        );
 
         Ok(())
     }
@@ -91,54 +113,63 @@ impl Default for AESEncryptionCircuit {
         ciphertext.copy_from_slice(&helpers::primitive_encrypt(&message, &key));
 
         Self {
-            message,
+            message: message.to_vec(),
             secret_key: key,
-            ciphertext,
+            ciphertext: ciphertext.to_vec(),
         }
     }
 }
 
 impl AESEncryptionCircuit {
     fn add_round_key<C>(
-        input: Witness,
-        key: Witness,
+        input: &[Witness],
+        round_key: &[Witness],
         composer: &mut C,
-    ) -> Result<Witness, PlonkError>
+    ) -> Result<Vec<Witness>, PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
-        Ok(composer.append_logic_xor(input, key, 128))
+        Ok(input
+            .iter()
+            .zip(round_key)
+            .map(|(input_byte, round_key_byte)| {
+                composer.append_logic_xor(*input_byte, *round_key_byte, 8)
+            })
+            .collect::<Vec<Witness>>())
     }
 
-    fn sub_bytes<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    fn sub_bytes<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Witness;
+        let output: Vec<Witness>;
         todo!()
     }
 
-    fn shift_rows<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    fn shift_rows<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Witness;
+        let output: Vec<Witness>;
         todo!()
     }
 
-    fn mix_columns<C>(input: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+    fn mix_columns<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let output: Witness;
+        let output: Vec<Witness>;
         todo!()
     }
 
-    fn derive_keys<C>(secret_key: Witness, composer: &mut C) -> Result<[Witness; 11], PlonkError>
+    fn derive_keys<C>(
+        secret_key: &[Witness],
+        composer: &mut C,
+    ) -> Result<[[Witness; 16]; 11], PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let keys: [Witness; 11];
+        let keys: [[Witness; 16]; 11];
         todo!()
     }
 }
