@@ -46,6 +46,7 @@ impl Circuit for AESEncryptionCircuit {
         // Key derivation
         let round_keys: [Witness; 11] = Self::derive_keys(secret_key, composer)?;
 
+        //TODO: At the moment we are doing one block encryption. We should do multiple blocks.
         // Add round 0 key
         let mut after_add_round_key: Witness =
             Self::add_round_key(message, round_keys[0], composer)?;
