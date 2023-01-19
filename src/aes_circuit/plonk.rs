@@ -1,5 +1,5 @@
 use crate::helpers;
-use dusk_plonk::prelude::{BlsScalar, Circuit, Witness};
+use dusk_plonk::prelude::{BlsScalar, Circuit, Constraint, Witness};
 use log::debug;
 
 type PlonkError = dusk_plonk::prelude::Error;
@@ -151,7 +151,10 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        debug!("Constraints before shifting rows {}", composer.constraints());
+        debug!(
+            "Constraints before shifting rows {}",
+            composer.constraints()
+        );
 
         // Turn the bytes into the 4x4 AES state matrix.
         // The matrix is represented by a 2D array,
@@ -286,4 +289,16 @@ where
     }
 
     output.to_vec()
+}
+
+fn kary_xor<C>(input: &[Witness], composer: &mut C) -> Result<Witness, PlonkError>
+where
+    C: dusk_plonk::prelude::Composer,
+{
+    let mut output = composer.append_constant(BlsScalar::zero());
+    for i in 0..input.len() {
+        output = composer.append_logic_xor(output, input[i], 8);
+    }
+
+    Ok(output)
 }
