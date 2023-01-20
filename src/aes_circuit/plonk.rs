@@ -120,18 +120,6 @@ impl AESEncryptionCircuit {
             .collect::<Vec<Witness>>())
     }
 
-    fn sub_bytes<C>(
-        input: &[Witness],
-        substitution_table: &[Witness],
-        composer: &mut C,
-    ) -> Result<Vec<Witness>, PlonkError>
-    where
-        C: dusk_plonk::prelude::Composer,
-    {
-        let output: Vec<Witness>;
-        todo!()
-    }
-
     fn shift_rows<C>(input: &[Witness], composer: &mut C) -> Result<Vec<Witness>, PlonkError>
     where
         C: dusk_plonk::prelude::Composer,
@@ -262,6 +250,33 @@ impl AESEncryptionCircuit {
     {
         let keys: [[Witness; 16]; 11];
         todo!()
+    }
+
+    fn sub_bytes<C>(
+        input: &[Witness],
+        substitution_table: &[Witness],
+        composer: &mut C,
+    ) -> Result<Vec<Witness>, PlonkError>
+    where
+        C: dusk_plonk::prelude::Composer,
+    {
+        let mut substituted_bytes: Vec<Witness> = vec![];
+        for byte in input {
+            let byte_in_bits: Vec<Witness> = composer[*byte]
+                .to_bits()
+                .iter()
+                .rev()
+                .skip(256 - 8)
+                .map(|bit| composer.append_witness(BlsScalar::from(*bit as u64)))
+                .collect();
+            substituted_bytes.push(Self::substitute_byte(
+                &byte_in_bits,
+                substitution_table,
+                composer,
+            )?);
+        }
+
+        Ok(substituted_bytes)
     }
 
     // I'm doing it this way because if instead I did something like
@@ -533,6 +548,40 @@ impl AESEncryptionCircuit {
 
         Ok(ret)
     }
+
+    fn substitute_byte<C>(
+        byte_in_bits: &[Witness],
+        substitution_table: &[Witness],
+        composer: &mut C,
+    ) -> Result<Witness, PlonkError>
+    where
+        C: dusk_plonk::composer::Composer,
+    {
+        let n = byte_in_bits.len();
+        let mut cur_mux_values = substitution_table.to_vec();
+
+        // Traverse the evaluation tree from bottom to top in level order traversal.
+        // This is method 5.1 from https://github.com/mir-protocol/r1cs-workshop/blob/master/workshop.pdf
+        // TODO: Add method 5.2/5.3
+        for i in 0..n {
+            // Size of current layer.
+            let cur_size = 1 << (n - i);
+            assert_eq!(cur_mux_values.len(), cur_size);
+
+            let mut next_mux_values = Vec::new();
+            for j in (0..cur_size).step_by(2) {
+                let cur = composer.component_select(
+                    byte_in_bits[n - 1 - i],
+                    cur_mux_values[j + 1],
+                    cur_mux_values[j],
+                );
+                next_mux_values.push(cur);
+            }
+            cur_mux_values = next_mux_values;
+        }
+
+        Ok(cur_mux_values[0])
+    }
 }
 
 fn rotate_left<C>(input: &[Witness], positions: usize, composer: &mut C) -> Vec<Witness>
@@ -623,7 +672,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "unimplemented"]
     fn test_substitute_bytes() {
         let mut composer = Builder::uninitialized(100);
 
