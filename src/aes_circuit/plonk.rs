@@ -286,10 +286,10 @@ impl AESEncryptionCircuit {
 
         let mut result: [[Witness; 4]; 44] = [constant_vec(4, composer).try_into().unwrap(); 44];
 
-        result[0] = secret_key[0..4].try_into().unwrap();
-        result[1] = secret_key[4..8].try_into().unwrap();
-        result[2] = secret_key[8..12].try_into().unwrap();
-        result[3] = secret_key[12..16].try_into().unwrap();
+        result[0].clone_from_slice(&secret_key[0..4]);
+        result[1].clone_from_slice(&secret_key[4..8]);
+        result[2].clone_from_slice(&secret_key[8..12]);
+        result[3].clone_from_slice(&secret_key[12..16]);
 
         for i in 4..44 {
             if i % 4 == 0 {
@@ -317,14 +317,19 @@ impl AESEncryptionCircuit {
             }
         }
 
-        let mut ret: [[Witness; 16]; 11] = [constant_vec(16, composer).try_into().unwrap(); 11];
+        let mut derived_keys: [[Witness; 16]; 11] =
+            [constant_vec(16, composer).try_into().unwrap(); 11];
 
-        for (a, b) in ret.iter_mut().zip(result.chunks(4)) {
-            let flattened_b = b.iter().copied().flatten().collect::<Vec<_>>();
-            a.clone_from_slice(flattened_b.as_slice());
+        for (round_key, expansion_result) in derived_keys.iter_mut().zip(result.chunks(4)) {
+            let flattened_b = expansion_result
+                .iter()
+                .copied()
+                .flatten()
+                .collect::<Vec<_>>();
+            round_key.clone_from_slice(flattened_b.as_slice());
         }
 
-        Ok(ret)
+        Ok(derived_keys)
     }
 
     fn sub_bytes<C>(
