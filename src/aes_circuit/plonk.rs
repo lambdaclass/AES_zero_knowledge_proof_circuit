@@ -1,4 +1,5 @@
 use crate::helpers;
+use collect_slice::CollectSlice;
 use dusk_plonk::prelude::{BlsScalar, Circuit, Constraint, Witness};
 use log::debug;
 
@@ -37,7 +38,7 @@ impl Circuit for AESEncryptionCircuit {
 
         // Key derivation
         let round_keys: [[Witness; 16]; 11] =
-            Self::derive_keys(&secret_key_bytes, &substitution_table, composer)?;
+            Self::key_expansion(&secret_key_bytes, &substitution_table, composer)?;
 
         //TODO: At the moment we are doing one block encryption. We should do multiple blocks.
         // Add round 0 key
@@ -245,7 +246,7 @@ impl AESEncryptionCircuit {
         ])
     }
 
-    fn derive_keys<C>(
+    fn key_expansion<C>(
         secret_key: &[Witness],
         substitution_table: &[Witness],
         composer: &mut C,
@@ -253,8 +254,83 @@ impl AESEncryptionCircuit {
     where
         C: dusk_plonk::prelude::Composer,
     {
-        let keys: [[Witness; 16]; 11];
-        todo!()
+        let zero = composer.append_constant(BlsScalar::zero());
+        let two_to_the_power_of_zero =
+            composer.append_constant(BlsScalar::from(u64::from(0x01_u8)));
+        let two_to_the_power_of_one = composer.append_constant(BlsScalar::from(u64::from(0x02_u8)));
+        let two_to_the_power_of_two = composer.append_constant(BlsScalar::from(u64::from(0x04_u8)));
+        let two_to_the_power_of_three =
+            composer.append_constant(BlsScalar::from(u64::from(0x08_u8)));
+        let two_to_the_power_of_four =
+            composer.append_constant(BlsScalar::from(u64::from(0x10_u8)));
+        let two_to_the_power_of_five =
+            composer.append_constant(BlsScalar::from(u64::from(0x20_u8)));
+        let two_to_the_power_of_six = composer.append_constant(BlsScalar::from(u64::from(0x40_u8)));
+        let two_to_the_power_of_seven =
+            composer.append_constant(BlsScalar::from(u64::from(0x80_u8)));
+        let adjustment = composer.append_constant(BlsScalar::from(u64::from(0x1B_u8)));
+        let fifty_four = composer.append_constant(BlsScalar::from(u64::from(0x36_u8)));
+        let round_constants: [[Witness; 4]; 10] = [
+            [two_to_the_power_of_zero, zero, zero, zero],
+            [two_to_the_power_of_one, zero, zero, zero],
+            [two_to_the_power_of_two, zero, zero, zero],
+            [two_to_the_power_of_three, zero, zero, zero],
+            [two_to_the_power_of_four, zero, zero, zero],
+            [two_to_the_power_of_five, zero, zero, zero],
+            [two_to_the_power_of_six, zero, zero, zero],
+            [two_to_the_power_of_seven, zero, zero, zero],
+            [adjustment, zero, zero, zero],
+            [fifty_four, zero, zero, zero],
+        ];
+
+        let mut result: [Witness; 176] = (0..176)
+            .into_iter()
+            .map(|v| composer.append_constant(BlsScalar::zero()))
+            .collect::<Vec<Witness>>()
+            .try_into()
+            .unwrap();
+
+        result[..16].clone_from_slice(secret_key);
+
+        for i in 16..176 {
+            if i % 16 == 0 {
+                let ret = &result[i - 8..i - 4];
+                let rotated = rotate_left(ret, 1, composer);
+                let substituted = Self::sub_bytes(&rotated, substitution_table, composer)?;
+
+                let mut out = Vec::with_capacity(4);
+                for ((a, b), c) in result[i - 16..(i - 16) + 4]
+                    .iter()
+                    .zip(substituted)
+                    .zip(round_constants[i / 16 - 1])
+                {
+                    out.push(kary_xor(&[*a, b, c], composer)?);
+                }
+                result[i - 4..i].clone_from_slice(&out);
+            } else {
+                let mut out = Vec::with_capacity(4);
+                for (a, b) in result[i - 16..(i - 16) + 4]
+                    .iter()
+                    .zip(result[i - 8..i - 4].iter())
+                {
+                    out.push(composer.append_logic_xor(*a, *b, 8));
+                }
+                result[i - 4..i].clone_from_slice(&out);
+            }
+        }
+
+        let mut ret: [[Witness; 16]; 11] = [(0..16)
+            .into_iter()
+            .map(|v| composer.append_constant(BlsScalar::zero()))
+            .collect::<Vec<Witness>>()
+            .try_into()
+            .unwrap(); 11];
+
+        for (i, elem) in result.chunks(16).enumerate() {
+            ret[i].clone_from_slice(elem);
+        }
+
+        Ok(ret)
     }
 
     fn sub_bytes<C>(
@@ -644,7 +720,7 @@ where
     composer.append_gate(constraint);
 
     let result = composer.component_select(are_equal, one, zero);
-    
+
     Ok(result)
 }
 
@@ -793,5 +869,40 @@ mod tests {
             from_witness_vec(&mixed_columns, &mut composer),
             from_witness_vec(&expected_after_mix_columns, &mut composer),
         );
+    }
+
+    #[test]
+    fn test_key_expansion() {
+        let mut composer = Builder::uninitialized(100);
+
+        let secret_key = to_witness_vec(
+            &[
+                0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                0x4f, 0x3c,
+            ],
+            &mut composer,
+        );
+
+        let substitution_table = AESEncryptionCircuit::substitution_table(&mut composer).unwrap();
+
+        let result =
+            AESEncryptionCircuit::key_expansion(&secret_key, &substitution_table, &mut composer)
+                .unwrap();
+
+        assert_eq!(
+            from_witness_vec(&result[10], &mut composer),
+            from_witness_vec(
+                &to_witness_vec(
+                    &[
+                        0xd0, 0x14, 0xf9, 0xa8, 0xc9, 0xee, 0x25, 0x89, 0xe1, 0x3f, 0x0c, 0xc8,
+                        0xb6, 0x63, 0x0c, 0xa6,
+                    ],
+                    &mut composer
+                ),
+                &mut composer
+            )
+        );
+
+        println!("{result:x?}");
     }
 }
