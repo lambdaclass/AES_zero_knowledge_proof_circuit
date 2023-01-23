@@ -270,6 +270,7 @@ impl AESEncryptionCircuit {
             composer.append_constant(BlsScalar::from(u64::from(0x80_u8)));
         let adjustment = composer.append_constant(BlsScalar::from(u64::from(0x1B_u8)));
         let fifty_four = composer.append_constant(BlsScalar::from(u64::from(0x36_u8)));
+
         let round_constants: [[Witness; 4]; 10] = [
             [two_to_the_power_of_zero, zero, zero, zero],
             [two_to_the_power_of_one, zero, zero, zero],
@@ -283,51 +284,44 @@ impl AESEncryptionCircuit {
             [fifty_four, zero, zero, zero],
         ];
 
-        let mut result: [Witness; 176] = (0..176)
-            .into_iter()
-            .map(|v| composer.append_constant(BlsScalar::zero()))
-            .collect::<Vec<Witness>>()
-            .try_into()
-            .unwrap();
+        let mut result: [[Witness; 4]; 44] = [constant_vec(4, composer).try_into().unwrap(); 44];
 
-        result[..16].clone_from_slice(secret_key);
+        result[0] = secret_key[0..4].try_into().unwrap();
+        result[1] = secret_key[4..8].try_into().unwrap();
+        result[2] = secret_key[8..12].try_into().unwrap();
+        result[3] = secret_key[12..16].try_into().unwrap();
 
-        for i in 16..176 {
-            if i % 16 == 0 {
-                let ret = &result[i - 8..i - 4];
-                let rotated = rotate_left(ret, 1, composer);
-                let substituted = Self::sub_bytes(&rotated, substitution_table, composer)?;
+        for i in 4..44 {
+            if i % 4 == 0 {
+                let rotated = rotate_left(&result[i - 1], 1, composer);
+                let rotated_and_substituted =
+                    Self::sub_bytes(&rotated, substitution_table, composer)?;
 
-                let mut out = Vec::with_capacity(4);
-                for ((a, b), c) in result[i - 16..(i - 16) + 4]
+                let mut xor = Vec::with_capacity(4);
+                for ((a, b), c) in result[i - 4]
                     .iter()
-                    .zip(substituted)
-                    .zip(round_constants[i / 16 - 1])
+                    .zip(rotated_and_substituted)
+                    .zip(round_constants[i / 4 - 1])
                 {
-                    out.push(kary_xor(&[*a, b, c], composer)?);
+                    xor.push(kary_xor(&[*a, b, c], composer)?);
                 }
-                result[i - 4..i].clone_from_slice(&out);
+
+                result[i].clone_from_slice(&xor);
             } else {
-                let mut out = Vec::with_capacity(4);
-                for (a, b) in result[i - 16..(i - 16) + 4]
-                    .iter()
-                    .zip(result[i - 8..i - 4].iter())
-                {
-                    out.push(composer.append_logic_xor(*a, *b, 8));
+                let mut xor = Vec::with_capacity(4);
+                for (a, b) in result[i - 4].iter().zip(result[i - 1].iter()) {
+                    xor.push(composer.append_logic_xor(*a, *b, 8));
                 }
-                result[i - 4..i].clone_from_slice(&out);
+
+                result[i].clone_from_slice(&xor);
             }
         }
 
-        let mut ret: [[Witness; 16]; 11] = [(0..16)
-            .into_iter()
-            .map(|v| composer.append_constant(BlsScalar::zero()))
-            .collect::<Vec<Witness>>()
-            .try_into()
-            .unwrap(); 11];
+        let mut ret: [[Witness; 16]; 11] = [constant_vec(16, composer).try_into().unwrap(); 11];
 
-        for (i, elem) in result.chunks(16).enumerate() {
-            ret[i].clone_from_slice(elem);
+        for (a, b) in ret.iter_mut().zip(result.chunks(4)) {
+            let flattened_b = b.iter().copied().flatten().collect::<Vec<_>>();
+            a.clone_from_slice(flattened_b.as_slice());
         }
 
         Ok(ret)
@@ -724,6 +718,16 @@ where
     Ok(result)
 }
 
+fn constant_vec<C>(size: usize, composer: &mut C) -> Vec<Witness>
+where
+    C: dusk_plonk::prelude::Composer,
+{
+    (0..size)
+        .into_iter()
+        .map(|_v| composer.append_constant(BlsScalar::zero()))
+        .collect::<Vec<Witness>>()
+}
+
 #[cfg(test)]
 mod tests {
     use dusk_plonk::prelude::{BlsScalar, Builder, Composer, Witness};
@@ -902,7 +906,5 @@ mod tests {
                 &mut composer
             )
         );
-
-        println!("{result:x?}");
     }
 }
