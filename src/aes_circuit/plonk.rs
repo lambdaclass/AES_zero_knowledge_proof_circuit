@@ -215,19 +215,24 @@ impl AESEncryptionCircuit {
          * in Rijndael's Galois field
          * a[n] ^ b[n] is element n multiplied by 3 in Rijndael's Galois field */
 
-        let a_hundred_and_twenty_eight = composer.append_constant(BlsScalar::from(0x80_u64));
+        let two_to_the_seventh = composer.append_constant(BlsScalar::from(0x80_u64));
+        let two_to_the_eighth = composer.append_constant(BlsScalar::from(0x100_u64));
         let two = composer.append_constant(BlsScalar::from(0x02_u64));
-        let galois_adjustment = composer.append_constant(BlsScalar::from(0x1B_u64));
+        let galois_adjustment = composer.append_constant(BlsScalar::from(0x11B_u64));
         for c in input.iter() {
             // c & 0x80
-            let overflowed = composer.append_logic_and(*c, a_hundred_and_twenty_eight, 8); /* arithmetic right shift, thus shifting in either zeros or ones */
-            // (c & 0x80) * 0x1B
-            let galois_adjustment_to_apply =
-                composer.gate_mul(Constraint::new().mult(1).a(overflowed).b(galois_adjustment));
-            // c * 0x02
-            let c_times_two = composer.gate_mul(Constraint::new().mult(1).a(*c).b(two));
-            // (c & 0x80) * 0x1B ^ c * 0x02
-            let b_i = composer.append_logic_xor(galois_adjustment_to_apply, c_times_two, 8);
+            let msb_is_one = composer.append_logic_and(*c, two_to_the_seventh, 8);
+            // c & 0x80 == 0x80
+            let overflowed = gate_eq(msb_is_one, two_to_the_seventh, composer)?;
+            // c << 1
+            let c_shifted = {
+                let c_times_two = composer.gate_mul(Constraint::new().mult(1).a(*c).b(two));
+                composer.append_logic_xor(c_times_two, two_to_the_eighth, 16)
+            };
+            // (c << 1) * 0x1B
+            let adjusted = composer.append_logic_xor(galois_adjustment, c_shifted, 8);
+            // if overflowed then (c << 1) * 0x1B else c << 1
+            let b_i = composer.component_select(overflowed, adjusted, c_shifted);
             b.push(b_i); /* implicitly removes high bit because b[c] is an 8-bit char, so we xor by 0x1b and not 0x11b in the next line */
             /* Rijndael's Galois field */
         }
@@ -604,11 +609,38 @@ where
     C: dusk_plonk::prelude::Composer,
 {
     let mut output = composer.append_constant(BlsScalar::zero());
-    for i in 0..input.len() {
-        output = composer.append_logic_xor(output, input[i], 8);
+    for w in input {
+        output = composer.append_logic_xor(output, *w, 8);
     }
 
     Ok(output)
+}
+
+fn gate_eq<C>(a: Witness, b: Witness, composer: &mut C) -> Result<Witness, PlonkError>
+where
+    C: dusk_plonk::prelude::Composer,
+{
+    let constraint = Constraint::new()
+        .left(1)
+        .right(-BlsScalar::one())
+        .a(a)
+        .b(b)
+        .output(BlsScalar::one());
+
+    let output = composer
+        .append_evaluated_output(constraint)
+        .ok_or(PlonkError::CircuitInputsNotFound)?;
+
+    let constraint = constraint.o(output);
+
+    let are_equal = composer.append_witness(BlsScalar::from(u64::from(
+        composer[output] == BlsScalar::zero(),
+    )));
+    composer.component_boolean(are_equal);
+
+    composer.append_gate(constraint);
+
+    Ok(are_equal)
 }
 
 #[cfg(test)]
