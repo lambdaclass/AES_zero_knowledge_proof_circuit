@@ -620,6 +620,9 @@ fn gate_eq<C>(a: Witness, b: Witness, composer: &mut C) -> Result<Witness, Plonk
 where
     C: dusk_plonk::prelude::Composer,
 {
+    let one = composer.append_constant(BlsScalar::one());
+    let zero = composer.append_constant(BlsScalar::zero());
+
     let constraint = Constraint::new()
         .left(1)
         .right(-BlsScalar::one())
@@ -640,7 +643,9 @@ where
 
     composer.append_gate(constraint);
 
-    Ok(are_equal)
+    let result = composer.component_select(are_equal, one, zero);
+    
+    Ok(result)
 }
 
 #[cfg(test)]
