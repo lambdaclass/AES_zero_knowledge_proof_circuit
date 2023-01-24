@@ -694,7 +694,7 @@ pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aes_circuit;
+    use crate::marlin;
     use ark_r1cs_std::{prelude::AllocVar, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use simpleworks::gadgets::{ConstraintF, UInt8Gadget};
@@ -723,7 +723,7 @@ mod tests {
             0x48, 0x08,
         ];
 
-        let after_add_round_key = aes_circuit::add_round_key(&plaintext, &secret_key).unwrap();
+        let after_add_round_key = marlin::add_round_key(&plaintext, &secret_key).unwrap();
 
         assert_eq!(
             after_add_round_key.value().unwrap(),
@@ -748,7 +748,7 @@ mod tests {
             0x26, 0x4c,
         ];
 
-        let mixed_column_vector = aes_circuit::mix_columns(&value_to_mix, cs.clone()).unwrap();
+        let mixed_column_vector = marlin::mix_columns(&value_to_mix, cs.clone()).unwrap();
 
         assert_eq!(
             mixed_column_vector.value().unwrap(),
@@ -787,7 +787,7 @@ mod tests {
             value_to_shift.get(11).unwrap(),
         ];
 
-        let res = aes_circuit::shift_rows(&value_to_shift, cs.clone());
+        let res = marlin::shift_rows(&value_to_shift, cs.clone());
         for (index, byte) in res.unwrap().iter().enumerate() {
             assert_eq!(byte.value(), expected.get(index).unwrap().value());
         }
@@ -797,7 +797,7 @@ mod tests {
     #[test]
     fn test_one_round_sub_bytes_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let lookup_table = aes_circuit::lookup_table(cs.clone()).unwrap();
+        let lookup_table = marlin::lookup_table(cs.clone()).unwrap();
         let value_to_substitute = UInt8Gadget::new_witness_vec(
             ark_relations::ns!(cs, "value_to_mix"),
             &[
@@ -813,7 +813,7 @@ mod tests {
         ];
 
         let substituted_value =
-            aes_circuit::substitute_bytes(&value_to_substitute, &lookup_table).unwrap();
+            marlin::substitute_bytes(&value_to_substitute, &lookup_table).unwrap();
 
         assert_eq!(
             substituted_value.value().unwrap(),
@@ -824,7 +824,7 @@ mod tests {
     #[test]
     fn key_expansion_circuit() {
         let cs = ConstraintSystem::<ConstraintF>::new_ref();
-        let lookup_table = aes_circuit::lookup_table(cs.clone()).unwrap();
+        let lookup_table = marlin::lookup_table(cs.clone()).unwrap();
         let secret_key = UInt8Gadget::new_witness_vec(
             cs.clone(),
             &[
@@ -833,7 +833,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let result = aes_circuit::derive_keys(&secret_key, &lookup_table, cs).unwrap();
+        let result = marlin::derive_keys(&secret_key, &lookup_table, cs).unwrap();
 
         assert_eq!(
             result.get(10).unwrap().value().unwrap(),
