@@ -8,7 +8,7 @@ use ark_r1cs_std::{
 use collect_slice::CollectSlice;
 use simpleworks::{
     gadgets::{
-        traits::{BitShiftGadget, ByteRotationGadget},
+        traits::{BitwiseOperationGadget, ByteRotationGadget},
         ConstraintF, UInt32Gadget, UInt8Gadget,
     },
     marlin::ConstraintSystemRef,

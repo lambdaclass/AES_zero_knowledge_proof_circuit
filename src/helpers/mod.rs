@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use ark_r1cs_std::{prelude::Boolean, R1CSVar, ToBitsGadget};
 use log::debug;
 use simpleworks::{
-    gadgets::{traits::BitShiftGadget, ConstraintF, UInt8Gadget},
+    gadgets::{traits::BitwiseOperationGadget, ConstraintF, UInt8Gadget},
     marlin::ConstraintSystemRef,
 };
 
