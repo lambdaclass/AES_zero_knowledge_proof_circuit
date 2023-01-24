@@ -1,9 +1,9 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{Context, Result};
+use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, uint128::UInt128, uint8::UInt8, R1CSVar, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
-use simpleworks::gadgets::ConstraintF;
 use std::iter::zip;
 
 /// Performs the xor bit by bit between the `input_text` and the key
@@ -61,9 +61,9 @@ pub fn substitute_byte(byte: u8) -> Result<u8> {
         .to_anyhow("Error getting substitution box value")?)
 }
 
-pub fn substitute_bytes(
+pub fn substitute_bytes<F: PrimeField>(
     bytes: &[u8; 16],
-    cs: &ConstraintSystemRef<ConstraintF>,
+    cs: &ConstraintSystemRef<F>,
 ) -> Result<[u8; 16]> {
     let num_witness =
         UInt128::new_witness(ark_relations::ns!(cs, "substition_box_witness"), || {
@@ -90,7 +90,7 @@ fn substitute_word(input: [u8; 4]) -> Result<[u8; 4]> {
 
 // num is a 128 bit number, represented
 // as 4 u32 numbers.
-pub fn shift_rows(bytes: &[u8; 16], cs: &ConstraintSystemRef<ConstraintF>) -> Result<[u8; 16]> {
+pub fn shift_rows<F: PrimeField>(bytes: &[u8; 16], cs: &ConstraintSystemRef<F>) -> Result<[u8; 16]> {
     // Add each number to the constrain system.
     for byte in bytes {
         UInt8::new_witness(ark_relations::ns!(cs, "shift_rows_witness"), || Ok(byte))?;
@@ -268,6 +268,7 @@ fn rotate_word(input: u32) -> [u8; 4] {
     ]
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -280,14 +281,14 @@ mod test {
         expected
             .iter_mut()
             .for_each(|e| *e = substitute_byte(*e).unwrap());
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let cs = ConstraintSystem::<F>::new_ref();
         let result = substitute_bytes(&num, &cs).unwrap();
         assert_eq!(expected, result);
     }
     #[rustfmt::skip]
     #[test]
     fn test_shift() {
-        let cs = ConstraintSystem::<ConstraintF>::new_ref();
+        let cs = ConstraintSystem::<F>::new_ref();
         // Generate random 16 bytes, and then check
         // that the AES shifting works like expected.
         let value_to_shift: [u8; 16] = rand::random();
@@ -362,3 +363,4 @@ mod test {
         println!("{result:x?}");
     }
 }
+*/

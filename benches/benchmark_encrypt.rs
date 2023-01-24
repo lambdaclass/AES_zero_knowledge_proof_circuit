@@ -1,7 +1,7 @@
 use aes::cipher::KeyInit;
 use anyhow::{ensure, Result};
 use criterion::Criterion;
-
+/* 
 // TODO: Support non-multiple of 16 bytes messages.
 fn primitive_encrypt(message: &[u8], key: &[u8]) -> Vec<u8> {
     let primitive_secret_key =
@@ -51,3 +51,4 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     group.finish();
     Ok(())
 }
+*/

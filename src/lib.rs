@@ -45,62 +45,49 @@ pub mod ops;
 
 use anyhow::{anyhow, Result};
 use ark_bls12_377::Fr;
-use ark_r1cs_std::prelude::{AllocVar, EqGadget};
+use ark_ff::{Fp256, PrimeField};
+use ark_poly_commit::marlin;
+use ark_r1cs_std::{prelude::{AllocVar, EqGadget}, uint8::UInt8};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::traits::ToAnyhow;
-use simpleworks::gadgets::UInt8Gadget;
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
-use simpleworks::{
-    gadgets::ConstraintF,
-    marlin::{MarlinProof, ProvingKey, VerifyingKey},
-};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn encrypt(
+/* 
+pub fn encrypt<F: PrimeField>(
     message: &[u8],
     secret_key: &[u8; 16],
     ciphertext: &[u8],
     proving_key: ProvingKey,
 ) -> Result<MarlinProof> {
     let rng = &mut simpleworks::marlin::generate_rand();
-    let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
+    let constraint_system = ConstraintSystem::<F>::new_ref();
 
     // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
     // `new_input_vec`, but for some reason that makes integration tests break??
-    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(message.len());
+    let mut message_circuit: Vec<UInt8::<F>> = Vec::with_capacity(message.len());
     for byte in message {
-        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        message_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
-    helpers::debug_constraint_system_status(
-        "After allocating the message",
-        constraint_system.clone(),
-    )?;
 
-    let mut secret_key_circuit: Vec<UInt8Gadget> = Vec::with_capacity(secret_key.len());
+    let mut secret_key_circuit: Vec<UInt8::<F>> = Vec::with_capacity(secret_key.len());
     for byte in secret_key {
-        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        secret_key_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
-    helpers::debug_constraint_system_status(
-        "After allocating the secret key",
-        constraint_system.clone(),
-    )?;
 
-    let mut ciphertext_circuit: Vec<UInt8Gadget> = Vec::with_capacity(ciphertext.len());
+    let mut ciphertext_circuit: Vec<UInt8::<F>> = Vec::with_capacity(ciphertext.len());
     for byte in ciphertext {
-        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
+        ciphertext_circuit.push(UInt8::<F>::new_input(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
-    helpers::debug_constraint_system_status(
-        "After allocating the ciphertext",
-        constraint_system.clone(),
-    )?;
+
 
     encrypt_and_generate_constraints(
         &message_circuit,
@@ -120,11 +107,54 @@ pub fn encrypt(
     let cs_ref_clone = ConstraintSystemRef::CS(Rc::new(RefCell::new(cs_clone)));
 
     helpers::debug_constraint_system_status("Before generating the proof", constraint_system)?;
-    let proof = simpleworks::marlin::generate_proof(cs_ref_clone, proving_key, rng)?;
+    let proof = marlin::generate_proof(cs_ref_clone, proving_key, rng)?;
 
     Ok(proof)
 }
+*/
 
+pub fn encrypt_cs<F: PrimeField> (
+    message: &[u8],
+    secret_key: &[u8; 16],
+    ciphertext: &[u8],
+) -> Result<ConstraintSystemRef<F>> {
+    let rng = &mut simpleworks::marlin::generate_rand();
+    let constraint_system = ConstraintSystem::<F>::new_ref();
+
+    // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
+    // `new_input_vec`, but for some reason that makes integration tests break??
+    let mut message_circuit: Vec<UInt8::<F>> = Vec::with_capacity(message.len());
+    for byte in message {
+        message_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let mut secret_key_circuit: Vec<UInt8::<F>> = Vec::with_capacity(secret_key.len());
+    for byte in secret_key {
+        secret_key_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    let mut ciphertext_circuit: Vec<UInt8::<F>> = Vec::with_capacity(ciphertext.len());
+    for byte in ciphertext {
+        ciphertext_circuit.push(UInt8::<F>::new_input(constraint_system.clone(), || {
+            Ok(byte)
+        })?);
+    }
+
+    encrypt_and_generate_constraints(
+        &message_circuit,
+        &secret_key_circuit,
+        &ciphertext_circuit,
+        constraint_system.clone(),
+    )?;
+
+    Ok(constraint_system)
+}
+
+/*
 pub fn verify_encryption(
     verifying_key: VerifyingKey,
     proof: &MarlinProof,
@@ -147,22 +177,24 @@ pub fn verify_encryption(
     )
 }
 
-fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
+
+fn byte_to_field_array<F: PrimeField>(byte: u8) -> Vec<F> {
     let mut ret = vec![];
 
     for i in 0_i32..8_i32 {
         let bit = (byte & (1 << i)) != 0;
-        ret.push(Fr::from(bit));
+        ret.push(F::from(bit));
     }
 
     ret
 }
 
-pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
+
+pub fn synthesize_keys<F: PrimeField>(plaintext_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
     let rng = &mut simpleworks::marlin::generate_rand();
     // This parameters support encrypting messages up to 1kb length.
     let universal_srs = simpleworks::marlin::generate_universal_srs(866_944, 513, 4_062_064, rng)?;
-    let constraint_system = ConstraintSystem::<ConstraintF>::new_ref();
+    let constraint_system = ConstraintSystem::<F>::new_ref();
 
     let default_message_input = vec![0_u8; plaintext_length];
     let default_secret_key_input = [0_u8; 16];
@@ -170,25 +202,25 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
 
     // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
     // `new_input_vec`, but for some reason that makes integration tests break??
-    let mut message_circuit: Vec<UInt8Gadget> = Vec::with_capacity(default_message_input.len());
+    let mut message_circuit: Vec<UInt8::<F>> = Vec::with_capacity(default_message_input.len());
     for byte in default_message_input {
-        message_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        message_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
 
-    let mut secret_key_circuit: Vec<UInt8Gadget> =
+    let mut secret_key_circuit: Vec<UInt8::<F>> =
         Vec::with_capacity(default_secret_key_input.len());
     for byte in default_secret_key_input {
-        secret_key_circuit.push(UInt8Gadget::new_witness(constraint_system.clone(), || {
+        secret_key_circuit.push(UInt8::<F>::new_witness(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
 
-    let mut ciphertext_circuit: Vec<UInt8Gadget> =
+    let mut ciphertext_circuit: Vec<UInt8::<F>> =
         Vec::with_capacity(default_ciphertext_input.len());
     for byte in default_ciphertext_input {
-        ciphertext_circuit.push(UInt8Gadget::new_input(constraint_system.clone(), || {
+        ciphertext_circuit.push(UInt8::<F>::new_input(constraint_system.clone(), || {
             Ok(byte)
         })?);
     }
@@ -203,13 +235,14 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
     simpleworks::marlin::generate_proving_and_verifying_keys(&universal_srs, constraint_system)
 }
 
-fn encrypt_and_generate_constraints(
-    message: &[UInt8Gadget],
-    secret_key: &[UInt8Gadget],
-    ciphertext: &[UInt8Gadget],
-    constraint_system: ConstraintSystemRef<ConstraintF>,
+*/
+fn encrypt_and_generate_constraints<F: PrimeField>(
+    message: &[UInt8::<F>],
+    secret_key: &[UInt8::<F>],
+    ciphertext: &[UInt8::<F>],
+    constraint_system: ConstraintSystemRef<F>,
 ) -> Result<()> {
-    let mut computed_ciphertext: Vec<UInt8Gadget> = Vec::new();
+    let mut computed_ciphertext: Vec<UInt8::<F>> = Vec::new();
     let lookup_table = aes_circuit::lookup_table(constraint_system.clone())?;
     helpers::debug_constraint_system_status(
         "After generating the lookup table",
