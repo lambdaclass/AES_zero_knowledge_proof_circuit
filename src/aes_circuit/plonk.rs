@@ -869,7 +869,6 @@ where
 #[cfg(test)]
 mod plonk_tests {
     use super::{to_witness_vec, AESEncryptionCircuit};
-    use ark_std::{end_timer, start_timer};
     use dusk_plonk::prelude::{BlsScalar, Builder, Compiler, Composer, PublicParameters, Witness};
     use rand::rngs::OsRng;
 
@@ -1045,7 +1044,7 @@ mod plonk_tests {
         let label = b"transcript-arguments";
         let t0 = std::time::Instant::now();
         println!("Generating Universal SRS...");
-        let pp = PublicParameters::setup(4_194_303, &mut OsRng).unwrap();
+        let pp = PublicParameters::setup(0x003F_FFFF, &mut OsRng).unwrap();
         println!(
             "Universal SRS generated! (t = {:?}s)",
             t0.elapsed().as_secs()
