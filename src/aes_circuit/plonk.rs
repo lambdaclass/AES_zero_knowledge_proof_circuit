@@ -28,39 +28,41 @@ impl Circuit for AESEncryptionCircuit {
         let round_keys: [[Witness; 16]; 11] =
             Self::key_expansion(&secret_key_bytes, &substitution_table, composer)?;
 
-        //TODO: At the moment we are doing one block encryption. We should do multiple blocks.
-        // Add round 0 key
-        let mut after_add_round_key = Self::add_round_key(&message_bytes, &round_keys[0], composer);
-        // 10-round AES encryption (we skip the first one because we already added in round 0)
-        for (round_number, round_key) in round_keys.iter().enumerate().skip(1) {
-            // SubBytes
-            let after_sub_bytes =
-                Self::sub_bytes(&after_add_round_key, &substitution_table, composer)?;
 
-            // ShiftRows
-            let after_shift_rows = Self::shift_rows(&after_sub_bytes, composer)?;
+        let mut computed_ciphertext: Vec<Witness> = Vec::new();
+        for block in message_bytes.chunks(16) {
+            let mut after_add_round_key = Self::add_round_key(block, &round_keys[0], composer);
+            // 10-round AES encryption (we skip the first one because we already added in round 0)
+            for (round_number, round_key) in round_keys.iter().enumerate().skip(1) {
+                // SubBytes
+                let after_sub_bytes =
+                    Self::sub_bytes(&after_add_round_key, &substitution_table, composer)?;
 
-            // MixColumns
-            let condition = composer.append_witness(BlsScalar::from(
-                (round_number == 10).try_into().unwrap_or(0_u64),
-            ));
-            // FIXME: Do we need to enforce this?
-            composer.component_boolean(condition);
-            let true_value = after_shift_rows.clone();
-            let false_value = Self::mix_columns(&after_shift_rows, composer)?;
-            let after_mix_columns = true_value
-                .into_iter()
-                .zip(false_value)
-                .map(|(true_value_byte, false_value_byte)| {
-                    composer.component_select(condition, true_value_byte, false_value_byte)
-                })
-                .collect::<Vec<Witness>>();
+                // ShiftRows
+                let after_shift_rows = Self::shift_rows(&after_sub_bytes, composer)?;
 
-            // AddRoundKey
-            after_add_round_key = Self::add_round_key(&after_mix_columns, round_key, composer);
+                // MixColumns
+                let condition = composer.append_witness(BlsScalar::from(
+                    (round_number == 10).try_into().unwrap_or(0_u64),
+                ));
+                // FIXME: Do we need to enforce this?
+                composer.component_boolean(condition);
+                let true_value = after_shift_rows.clone();
+                let false_value = Self::mix_columns(&after_shift_rows, composer)?;
+                let after_mix_columns = true_value
+                    .into_iter()
+                    .zip(false_value)
+                    .map(|(true_value_byte, false_value_byte)| {
+                        composer.component_select(condition, true_value_byte, false_value_byte)
+                    })
+                    .collect::<Vec<Witness>>();
+
+                // AddRoundKey
+                after_add_round_key = Self::add_round_key(&after_mix_columns, round_key, composer);
+
+                computed_ciphertext.extend_from_slice(&after_add_round_key);
+            }
         }
-
-        let computed_ciphertext = after_add_round_key;
         // Enforce that the ciphertext is the result of the encryption
         ciphertext_bytes.iter().zip(computed_ciphertext).for_each(
             |(ciphertext_byte, computed_ciphertext_byte)| {
