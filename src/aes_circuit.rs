@@ -10,7 +10,7 @@ use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
 use simpleworks::{
     gadgets::{
-        traits::{BitShiftGadget, ByteRotationGadget}
+        traits::{BitwiseOperationGadget, ByteRotationGadget}
     },
 };
 

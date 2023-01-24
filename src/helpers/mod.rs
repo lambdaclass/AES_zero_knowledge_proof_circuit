@@ -5,7 +5,7 @@ use ark_r1cs_std::{prelude::Boolean, R1CSVar, ToBitsGadget, uint8::UInt8};
 use ark_relations::r1cs::ConstraintSystemRef;
 use log::debug;
 use simpleworks::{
-    gadgets::{traits::BitShiftGadget},
+    gadgets::{traits::BitwiseOperationGadget},
 };
 
 pub mod traits;
