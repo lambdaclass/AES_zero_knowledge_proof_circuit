@@ -28,7 +28,6 @@ impl Circuit for AESEncryptionCircuit {
         let round_keys: [[Witness; 16]; 11] =
             Self::key_expansion(&secret_key_bytes, &substitution_table, composer)?;
 
-
         let mut computed_ciphertext: Vec<Witness> = Vec::new();
         for block in message_bytes.chunks(16) {
             let mut after_add_round_key = Self::add_round_key(block, &round_keys[0], composer);
@@ -76,12 +75,12 @@ impl Circuit for AESEncryptionCircuit {
 
 impl Default for AESEncryptionCircuit {
     fn default() -> Self {
-        let mut message = [0_u8; 64];
-        message.copy_from_slice(&helpers::sample_message(64));
+        let mut message = [0_u8; 16];
+        message.copy_from_slice(&helpers::sample_message(16));
 
         let key: [u8; 16] = rand::random();
 
-        let mut ciphertext = [0_u8; 64];
+        let mut ciphertext = [0_u8; 16];
         ciphertext.copy_from_slice(&helpers::primitive_encrypt(&message, &key));
 
         Self {
@@ -870,7 +869,9 @@ where
 #[cfg(test)]
 mod plonk_tests {
     use super::{to_witness_vec, AESEncryptionCircuit};
-    use dusk_plonk::prelude::{BlsScalar, Builder, Composer, Witness};
+    use ark_std::{end_timer, start_timer};
+    use dusk_plonk::prelude::{BlsScalar, Builder, Compiler, Composer, PublicParameters, Witness};
+    use rand::rngs::OsRng;
 
     // I allow this clippy lint here because there is no way of using .get() or
     // .get_mut() in the composer.
@@ -1037,5 +1038,39 @@ mod plonk_tests {
                 &mut composer
             )
         );
+    }
+
+    #[test]
+    fn test_encrypt_plonk() {
+        let label = b"transcript-arguments";
+        let t0 = std::time::Instant::now();
+        println!("Generating Universal SRS...");
+        let pp = PublicParameters::setup(4_194_303, &mut OsRng).unwrap();
+        println!(
+            "Universal SRS generated! (t = {:?}s)",
+            t0.elapsed().as_secs()
+        );
+
+        let t1 = std::time::Instant::now();
+        println!("Compiling circuit...");
+        let (prover, verifier) = Compiler::compile::<AESEncryptionCircuit>(&pp, label).unwrap();
+        println!("Circuit compiled! (t = {:?}s)", t1.elapsed().as_secs());
+
+        let t2 = std::time::Instant::now();
+        println!("Generating proof and its public inputs...");
+        // Generate the proof and its public inputs
+        let (proof, public_inputs) = prover
+            .prove(&mut OsRng, &AESEncryptionCircuit::default())
+            .unwrap();
+        println!(
+            "Proof and its public inputs generated! (t = {:?}s)",
+            t2.elapsed().as_secs()
+        );
+
+        let t3 = std::time::Instant::now();
+        println!("Verifying proof...");
+        // Verify the generated proof
+        verifier.verify(&proof, &public_inputs).unwrap();
+        println!("Proof verified! (t = {:?}s)", t3.elapsed().as_secs());
     }
 }
