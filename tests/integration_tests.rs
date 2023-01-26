@@ -2,11 +2,11 @@
 #[cfg(test)]
 mod tests {
     use ark_relations::r1cs::ConstraintSystem;
-    use poc_encryption_proof::{
+    use simpleworks::{gadgets::ConstraintF, marlin::ConstraintSystemRef};
+    use zk_aes::{
         aes::{add_round_key, derive_keys, mix_columns, shift_rows, substitute_bytes},
         encrypt, synthesize_keys, verify_encryption,
     };
-    use simpleworks::{gadgets::ConstraintF, marlin::ConstraintSystemRef};
 
     #[allow(clippy::too_many_arguments)]
     fn assert_round_steps_results_are_the_expected(

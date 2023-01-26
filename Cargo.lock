@@ -1228,38 +1228,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "poc-encryption-proof"
-version = "0.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "ark-bls12-377",
- "ark-bls12-381",
- "ark-crypto-primitives",
- "ark-ec",
- "ark-ed-on-bls12-381",
- "ark-ff",
- "ark-poly",
- "ark-poly-commit",
- "ark-r1cs-std",
- "ark-relations",
- "ark-serialize",
- "ark-snark",
- "ark-std",
- "cfg-if",
- "collect_slice",
- "criterion",
- "digest",
- "env_logger",
- "log",
- "parking_lot",
- "pprof",
- "rand",
- "rand_chacha",
- "simpleworks",
-]
-
-[[package]]
 name = "pprof"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2016,4 +1984,36 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
+]
+
+[[package]]
+name = "zk-aes"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "ark-bls12-377",
+ "ark-bls12-381",
+ "ark-crypto-primitives",
+ "ark-ec",
+ "ark-ed-on-bls12-381",
+ "ark-ff",
+ "ark-poly",
+ "ark-poly-commit",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-serialize",
+ "ark-snark",
+ "ark-std",
+ "cfg-if",
+ "collect_slice",
+ "criterion",
+ "digest",
+ "env_logger",
+ "log",
+ "parking_lot",
+ "pprof",
+ "rand",
+ "rand_chacha",
+ "simpleworks",
 ]
