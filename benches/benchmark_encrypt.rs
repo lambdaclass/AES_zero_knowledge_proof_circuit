@@ -35,8 +35,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
         "Message length in bytes should be a multiple of 16 for the moment"
     );
     let message = sample_message(amount_of_bytes);
-    let (proving_key, _verifying_key) =
-        zk_aes::synthesize_keys(message.len()).unwrap();
+    let (proving_key, _verifying_key) = zk_aes::synthesize_keys(message.len()).unwrap();
     let key: [u8; 16] = rand::random();
     let ciphertext = primitive_encrypt(&message, &key);
 
@@ -44,8 +43,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     group.sample_size(10);
     group.bench_function(format!("{amount_of_bytes}_message_encryption"), |b| {
         b.iter(|| {
-            zk_aes::encrypt(&message, &key, &ciphertext, proving_key.clone())
-                .unwrap();
+            zk_aes::encrypt(&message, &key, &ciphertext, proving_key.clone()).unwrap();
         })
     });
     group.finish();
