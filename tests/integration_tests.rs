@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use ark_relations::r1cs::ConstraintSystem;
-    use poc_encryption_proof::{
+    use zk_aes::{
         aes::{add_round_key, derive_keys, mix_columns, shift_rows, substitute_bytes},
         encrypt, synthesize_keys, verify_encryption,
     };

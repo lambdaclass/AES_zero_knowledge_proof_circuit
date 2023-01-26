@@ -36,7 +36,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     );
     let message = sample_message(amount_of_bytes);
     let (proving_key, _verifying_key) =
-        poc_encryption_proof::synthesize_keys(message.len()).unwrap();
+        zk_aes::synthesize_keys(message.len()).unwrap();
     let key: [u8; 16] = rand::random();
     let ciphertext = primitive_encrypt(&message, &key);
 
@@ -44,7 +44,7 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     group.sample_size(10);
     group.bench_function(format!("{amount_of_bytes}_message_encryption"), |b| {
         b.iter(|| {
-            poc_encryption_proof::encrypt(&message, &key, &ciphertext, proving_key.clone())
+            zk_aes::encrypt(&message, &key, &ciphertext, proving_key.clone())
                 .unwrap();
         })
     });

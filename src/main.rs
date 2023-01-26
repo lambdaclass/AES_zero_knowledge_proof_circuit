@@ -4,7 +4,7 @@ use aes::{
 };
 use anyhow::Result;
 use digest::generic_array::GenericArray;
-use poc_encryption_proof::{encrypt, synthesize_keys, verify_encryption};
+use zk_aes::{encrypt, synthesize_keys, verify_encryption};
 
 fn main() -> Result<()> {
     env_logger::init();
