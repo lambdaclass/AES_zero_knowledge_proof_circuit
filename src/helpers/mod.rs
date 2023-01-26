@@ -1,19 +1,18 @@
 use crate::helpers::traits::ToAnyhow;
 use anyhow::{anyhow, Result};
-use ark_r1cs_std::{prelude::Boolean, R1CSVar, ToBitsGadget};
+use ark_ff::Field;
+use ark_r1cs_std::{prelude::Boolean, uint8::UInt8, R1CSVar, ToBitsGadget};
+use ark_relations::r1cs::ConstraintSystemRef;
 use log::debug;
-use simpleworks::{
-    gadgets::{traits::BitwiseOperationGadget, ConstraintF, UInt8Gadget},
-    marlin::ConstraintSystemRef,
-};
+use simpleworks::gadgets::traits::BitwiseOperationGadget;
 
 pub mod traits;
 
-pub fn add(augend: &UInt8Gadget, addend: &UInt8Gadget) -> Result<UInt8Gadget> {
+pub fn add<F: Field>(augend: &UInt8<F>, addend: &UInt8<F>) -> Result<UInt8<F>> {
     let augend = augend.to_bits_be()?;
     let addend = addend.to_bits_be()?;
-    let mut sum = vec![Boolean::<ConstraintF>::FALSE; augend.len()];
-    let mut carry = Boolean::<ConstraintF>::FALSE;
+    let mut sum = vec![Boolean::<F>::FALSE; augend.len()];
+    let mut carry = Boolean::<F>::FALSE;
     for (i, (augend_bit, addend_bit)) in augend.iter().zip(addend).enumerate().rev() {
         // Bit by bit sum is an xor for the augend, the addend and the carry bits.
         // carry in | addend | augend | carry out | augend + addend |
@@ -39,15 +38,15 @@ pub fn add(augend: &UInt8Gadget, addend: &UInt8Gadget) -> Result<UInt8Gadget> {
             .or(&(carry.and(&(augend_bit.or(&addend_bit)?))?))?;
     }
     sum.reverse();
-    Ok(UInt8Gadget::from_bits_le(&sum))
+    Ok(UInt8::<F>::from_bits_le(&sum))
 }
 
-pub fn multiply(
-    multiplicand: &UInt8Gadget,
-    multiplier: &UInt8Gadget,
-    constraint_system: ConstraintSystemRef,
-) -> Result<UInt8Gadget> {
-    let mut product = UInt8Gadget::constant(0_u8);
+pub fn multiply<F: Field>(
+    multiplicand: &UInt8<F>,
+    multiplier: &UInt8<F>,
+    constraint_system: ConstraintSystemRef<F>,
+) -> Result<UInt8<F>> {
+    let mut product = UInt8::<F>::constant(0_u8);
 
     for (i, multiplier_bit) in multiplier.to_bits_be()?.iter().rev().enumerate() {
         // If the divisor bit is a 1.
@@ -64,9 +63,9 @@ pub fn multiply(
     Ok(product)
 }
 
-pub fn debug_constraint_system_status(
+pub fn debug_constraint_system_status<F: Field>(
     message: &str,
-    constraint_system: ConstraintSystemRef,
+    constraint_system: ConstraintSystemRef<F>,
 ) -> Result<()> {
     let matrix = constraint_system
         .to_matrices()

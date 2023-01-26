@@ -1,73 +1,71 @@
 use crate::helpers::{self, traits::ToAnyhow};
 use anyhow::{ensure, Result};
+use ark_ff::Field;
 use ark_r1cs_std::{
     prelude::{AllocVar, Boolean},
     select::CondSelectGadget,
+    uint32::UInt32,
+    uint8::UInt8,
     ToBitsGadget,
 };
+use ark_relations::r1cs::ConstraintSystemRef;
 use collect_slice::CollectSlice;
-use simpleworks::{
-    gadgets::{
-        traits::{BitwiseOperationGadget, ByteRotationGadget},
-        ConstraintF, UInt32Gadget, UInt8Gadget,
-    },
-    marlin::ConstraintSystemRef,
-};
+use simpleworks::gadgets::traits::{BitwiseOperationGadget, ByteRotationGadget};
 
 /// This function returns the derived keys from the secret key.
 /// Because AES 128 consists of 11 rounds, the result are 11 128-bit keys,
 /// which we represent as 4 32-bit words, so we compute 44 32-bit elements
 /// W_0, W_1, ..., W_43. The first four constitute the first round key, the
 /// second four the second one, and so on.
-pub fn derive_keys(
-    secret_key: &[UInt8Gadget],
-    lookup_table: &[UInt8Gadget],
-    constraint_system: ConstraintSystemRef,
-) -> Result<Vec<Vec<UInt8Gadget>>> {
-    let round_constants: [UInt32Gadget; 10] = [
-        UInt32Gadget::new_constant(
+pub fn derive_keys<F: Field>(
+    secret_key: &[UInt8<F>],
+    lookup_table: &[UInt8<F>],
+    constraint_system: ConstraintSystemRef<F>,
+) -> Result<Vec<Vec<UInt8<F>>>> {
+    let round_constants: [UInt32<F>; 10] = [
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x01, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x02, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x04, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x08, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x10, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x20, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x40, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x80, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x1B, 0x00, 0x00, 0x00]),
         )?,
-        UInt32Gadget::new_constant(
+        UInt32::<F>::new_constant(
             constraint_system.clone(),
             u32::from_be_bytes([0x36, 0x00, 0x00, 0x00]),
         )?,
     ];
 
-    let mut result: Vec<UInt32Gadget> = Vec::with_capacity(44);
+    let mut result: Vec<UInt32<F>> = Vec::with_capacity(44);
 
     result.push(to_u32(secret_key.get(..4).to_anyhow(
         "Error getting secret key slice when converting to u32",
@@ -114,7 +112,7 @@ pub fn derive_keys(
         }
     }
 
-    let mut ret: Vec<Vec<UInt8Gadget>> = vec![];
+    let mut ret: Vec<Vec<UInt8<F>>> = vec![];
 
     for elem in result.chunks_mut(4) {
         let mut round_key = vec![];
@@ -130,10 +128,10 @@ pub fn derive_keys(
     Ok(ret)
 }
 
-fn substitute_word(
-    input: &[UInt8Gadget],
-    lookup_table: &[UInt8Gadget],
-) -> Result<[UInt8Gadget; 4]> {
+fn substitute_word<F: Field>(
+    input: &[UInt8<F>],
+    lookup_table: &[UInt8<F>],
+) -> Result<[UInt8<F>; 4]> {
     ensure!(
         input.len() == 4,
         "Input to substitute_word must be 4 bytes, got {}",
@@ -168,15 +166,15 @@ fn substitute_word(
     ])
 }
 
-fn rotate_word(
-    input: &UInt32Gadget,
-    constraint_system: ConstraintSystemRef,
-) -> Result<[UInt8Gadget; 4]> {
+fn rotate_word<F: Field>(
+    input: &UInt32<F>,
+    constraint_system: ConstraintSystemRef<F>,
+) -> Result<[UInt8<F>; 4]> {
     let mut word_to_rotate = [
-        UInt8Gadget::constant(0),
-        UInt8Gadget::constant(0),
-        UInt8Gadget::constant(0),
-        UInt8Gadget::constant(0),
+        UInt8::<F>::constant(0),
+        UInt8::<F>::constant(0),
+        UInt8::<F>::constant(0),
+        UInt8::<F>::constant(0),
     ];
 
     for (word_to_rotate_byte, input_byte) in word_to_rotate.iter_mut().zip(to_bytes_be(input)) {
@@ -187,22 +185,22 @@ fn rotate_word(
 }
 
 // It's either this or forking `r1cs-std`.
-fn to_bytes_be(input: &UInt32Gadget) -> Vec<UInt8Gadget> {
+fn to_bytes_be<F: Field>(input: &UInt32<F>) -> Vec<UInt8<F>> {
     let mut bits = input.to_bits_le();
     bits.reverse();
 
     bits.chunks_mut(8)
         .map(|chunk| {
             chunk.reverse();
-            UInt8Gadget::from_bits_le(chunk)
+            UInt8::<F>::from_bits_le(chunk)
         })
         .collect()
 }
 
-fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
+fn to_u32<F: Field>(value: &[UInt8<F>]) -> Result<UInt32<F>> {
     ensure!(value.len() == 4, "Invalid length for u32");
 
-    let mut bits = [Boolean::<ConstraintF>::FALSE; 32];
+    let mut bits = [Boolean::<F>::FALSE; 32];
     value
         .iter()
         .rev()
@@ -210,10 +208,13 @@ fn to_u32(value: &[UInt8Gadget]) -> Result<UInt32Gadget> {
         .flatten()
         .collect_slice(&mut bits);
 
-    Ok(UInt32Gadget::from_bits_le(&bits))
+    Ok(UInt32::<F>::from_bits_le(&bits))
 }
 
-pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result<Vec<UInt8Gadget>> {
+pub fn add_round_key<F: Field>(
+    input: &[UInt8<F>],
+    round_key: &[UInt8<F>],
+) -> Result<Vec<UInt8<F>>> {
     ensure!(
         input.len() == 16,
         "Input must be 16 bytes length when adding round key"
@@ -232,24 +233,24 @@ pub fn add_round_key(input: &[UInt8Gadget], round_key: &[UInt8Gadget]) -> Result
                 .to_anyhow("Error adding round key")
                 .ok()
         })
-        .collect::<Vec<UInt8Gadget>>();
+        .collect::<Vec<UInt8<F>>>();
 
     ensure!(output.len() == 16, "Error adding round key");
 
     Ok(output)
 }
 
-fn substitute_byte(byte: &UInt8Gadget, lookup_table: &[UInt8Gadget]) -> Result<UInt8Gadget> {
-    Ok(UInt8Gadget::conditionally_select_power_of_two_vector(
+fn substitute_byte<F: Field>(byte: &UInt8<F>, lookup_table: &[UInt8<F>]) -> Result<UInt8<F>> {
+    Ok(UInt8::<F>::conditionally_select_power_of_two_vector(
         &byte.to_bits_be()?,
         lookup_table,
     )?)
 }
 
-pub fn substitute_bytes(
-    bytes: &[UInt8Gadget],
-    lookup_table: &[UInt8Gadget],
-) -> Result<Vec<UInt8Gadget>> {
+pub fn substitute_bytes<F: Field>(
+    bytes: &[UInt8<F>],
+    lookup_table: &[UInt8<F>],
+) -> Result<Vec<UInt8<F>>> {
     ensure!(
         bytes.len() == 16,
         "Input must be 16 bytes length when substituting bytes"
@@ -264,10 +265,10 @@ pub fn substitute_bytes(
     Ok(substituted_bytes)
 }
 
-pub fn shift_rows(
-    bytes: &[UInt8Gadget],
-    constraint_system: ConstraintSystemRef,
-) -> Option<Vec<UInt8Gadget>> {
+pub fn shift_rows<F: Field>(
+    bytes: &[UInt8<F>],
+    constraint_system: ConstraintSystemRef<F>,
+) -> Option<Vec<UInt8<F>>> {
     // Turn the bytes into the 4x4 AES state matrix.
     // The matrix is represented by a 2D array,
     // where each array is a row.
@@ -332,11 +333,11 @@ pub fn shift_rows(
     Some(result)
 }
 
-pub fn mix_columns(
-    input: &[UInt8Gadget],
-    constraint_system: ConstraintSystemRef,
-) -> Option<Vec<UInt8Gadget>> {
-    let mut mixed_input = UInt8Gadget::constant_vec(&[0_u8; 16]);
+pub fn mix_columns<F: Field>(
+    input: &[UInt8<F>],
+    constraint_system: ConstraintSystemRef<F>,
+) -> Option<Vec<UInt8<F>>> {
+    let mut mixed_input = UInt8::<F>::constant_vec(&[0_u8; 16]);
     for (i, column) in input.chunks(4).enumerate() {
         let column_aux = [
             column.first()?.clone(),
@@ -356,28 +357,28 @@ pub fn mix_columns(
 }
 
 // TODO: this function should return a result.
-fn gmix_column(
-    input: &[UInt8Gadget; 4],
-    constraint_system: ConstraintSystemRef,
-) -> Option<[UInt8Gadget; 4]> {
-    let mut b: Vec<UInt8Gadget> = Vec::new();
+fn gmix_column<F: Field>(
+    input: &[UInt8<F>; 4],
+    constraint_system: ConstraintSystemRef<F>,
+) -> Option<[UInt8<F>; 4]> {
+    let mut b: Vec<UInt8<F>> = Vec::new();
 
     for c in input.iter() {
-        // TODO: Refactor this when and() is implemented for UInt8Gadget.
+        // TODO: Refactor this when and() is implemented for UInt8::<F>.
         let h_bits = c
             .shift_right(7, constraint_system.clone())
             .ok()?
             .to_bits_le()
             .ok()?
             .iter()
-            .zip(UInt8Gadget::constant(1).to_bits_le().ok()?)
+            .zip(UInt8::<F>::constant(1).to_bits_le().ok()?)
             .filter_map(|(a, b)| a.and(&b).ok())
-            .collect::<Vec<Boolean<ConstraintF>>>();
-        let h = UInt8Gadget::from_bits_le(&h_bits);
+            .collect::<Vec<Boolean<F>>>();
+        let h = UInt8::<F>::from_bits_le(&h_bits);
         let partial_b_byte = c.shift_left(1, constraint_system.clone()).ok()?;
         let b_byte = partial_b_byte
             .xor(
-                &helpers::multiply(&h, &UInt8Gadget::constant(0x1B), constraint_system.clone())
+                &helpers::multiply(&h, &UInt8::<F>::constant(0x1B), constraint_system.clone())
                     .ok()?,
             )
             .ok()?;
@@ -429,265 +430,265 @@ fn gmix_column(
 // vec![...] there would be a huge stack allocation that, among other things,
 // would make compilation (yes, compilation) incredibly slow.
 #[allow(clippy::vec_init_then_push)]
-pub fn lookup_table(cs: ConstraintSystemRef) -> Result<Vec<UInt8Gadget>> {
+pub fn lookup_table<F: Field>(cs: ConstraintSystemRef<F>) -> Result<Vec<UInt8<F>>> {
     let mut ret = vec![];
 
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x63)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x77)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x30)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x01)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x67)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x76)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x82)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x59)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x47)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAD)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x72)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFD)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x93)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x26)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x36)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x34)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x71)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x31)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x15)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x04)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x23)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x18)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x96)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x05)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x07)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x12)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x80)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xEB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x27)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x75)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x09)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x83)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x52)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x29)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x84)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x53)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x00)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xED)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x20)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x39)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x58)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xEF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x43)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x33)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x85)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x45)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x02)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x50)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x51)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x40)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x92)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x38)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x21)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x10)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xFF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCD)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x13)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xEC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x97)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x44)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x17)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x64)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x19)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x73)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x60)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x81)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x22)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x90)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x88)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x46)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xEE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x14)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDB)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x32)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x49)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x06)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x24)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x5C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC2)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD3)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAC)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x62)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x91)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x95)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x79)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE7)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x37)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x6C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x56)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xEA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x65)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x7A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xAE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x08)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBA)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x78)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x25)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB4)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDD)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x74)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x4B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBD)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8A)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x70)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x3E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB5)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x66)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x48)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x03)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x61)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x35)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x57)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x86)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xC1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xF8)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x98)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x11)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x69)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xD9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x94)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x9B)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x1E)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x87)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE9)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xCE)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x55)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x28)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xDF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x8C)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xA1)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x89)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBF)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xE6)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x42)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x68)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x41)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x99)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x2D)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x0F)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xB0)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0x54)?);
-    ret.push(UInt8Gadget::new_constant(cs.clone(), 0xBB)?);
-    ret.push(UInt8Gadget::new_constant(cs, 0x16)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x63)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x77)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x30)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x01)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x67)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAB)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x76)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x82)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x59)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x47)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAD)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x72)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFD)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x93)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x26)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x36)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x34)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x71)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x31)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x15)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x04)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x23)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x18)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x96)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x05)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x07)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x12)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x80)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xEB)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x27)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x75)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x09)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x83)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x52)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x29)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x84)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x53)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x00)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xED)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x20)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCB)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x39)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x58)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xEF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFB)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x43)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x33)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x85)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x45)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x02)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x50)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x51)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x40)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x92)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x38)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x21)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x10)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xFF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCD)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x13)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xEC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x97)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x44)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x17)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x64)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x19)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x73)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x60)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x81)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x22)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x90)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x88)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x46)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xEE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x14)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDB)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x32)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x49)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x06)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x24)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x5C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC2)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD3)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAC)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x62)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x91)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x95)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x79)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE7)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x37)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x6C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x56)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xEA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x65)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x7A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xAE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x08)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBA)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x78)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x25)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB4)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDD)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x74)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x4B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBD)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8A)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x70)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x3E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB5)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x66)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x48)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x03)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x61)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x35)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x57)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x86)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xC1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xF8)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x98)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x11)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x69)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xD9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x94)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x9B)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x1E)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x87)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE9)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xCE)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x55)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x28)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xDF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x8C)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xA1)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x89)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBF)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xE6)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x42)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x68)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x41)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x99)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x2D)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x0F)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xB0)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0x54)?);
+    ret.push(UInt8::<F>::new_constant(cs.clone(), 0xBB)?);
+    ret.push(UInt8::<F>::new_constant(cs, 0x16)?);
 
     Ok(ret)
 }
