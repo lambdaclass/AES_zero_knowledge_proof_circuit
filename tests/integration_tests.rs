@@ -320,12 +320,13 @@ mod tests {
             0x4f, 0x3c,
         ];
         let (proving_key, verifying_key) = synthesize_keys(plaintext.len()).unwrap();
+
+        let proof = encrypt(&plaintext, &key, proving_key).unwrap();
+
         let expected_ciphertext = [
             0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
             0x0b, 0x32,
         ];
-
-        let proof = encrypt(&plaintext, &key, &expected_ciphertext, proving_key).unwrap();
         assert!(verify_encryption(verifying_key.clone(), &proof, &expected_ciphertext).unwrap());
 
         let wrong_ciphertext = [
@@ -350,6 +351,7 @@ mod tests {
         ];
         let (proving_key, verifying_key) = synthesize_keys(plaintext.len()).unwrap();
 
+        let proof = encrypt(&plaintext, &key, proving_key).unwrap();
         let expected_ciphertext = [
             0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
             0x0b, 0x32, 0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97,
@@ -357,8 +359,6 @@ mod tests {
             0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32, 0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb,
             0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32,
         ];
-
-        let proof = encrypt(&plaintext, &key, &expected_ciphertext, proving_key).unwrap();
         assert!(verify_encryption(verifying_key.clone(), &proof, &expected_ciphertext).unwrap());
 
         let wrong_ciphertext = [

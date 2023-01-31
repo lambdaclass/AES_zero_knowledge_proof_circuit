@@ -64,7 +64,6 @@ use std::rc::Rc;
 pub fn encrypt(
     message: &[u8],
     secret_key: &[u8; 16],
-    ciphertext: &[u8],
     proving_key: ProvingKey,
 ) -> Result<MarlinProof> {
     let rng = &mut simpleworks::marlin::generate_rand();
@@ -96,22 +95,9 @@ pub fn encrypt(
         constraint_system.clone(),
     )?;
 
-    let mut ciphertext_circuit: Vec<UInt8<ConstraintF>> = Vec::with_capacity(ciphertext.len());
-    for byte in ciphertext {
-        ciphertext_circuit.push(UInt8::<ConstraintF>::new_input(
-            constraint_system.clone(),
-            || Ok(byte),
-        )?);
-    }
-    helpers::debug_constraint_system_status(
-        "After allocating the ciphertext",
-        constraint_system.clone(),
-    )?;
-
     encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
-        &ciphertext_circuit,
         constraint_system.clone(),
     )?;
 
@@ -195,7 +181,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
     let _ciphertext = encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
-        &ciphertext_circuit,
         constraint_system.clone(),
     );
 
@@ -205,7 +190,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
 pub fn encrypt_and_generate_constraints<F: Field>(
     message: &[UInt8<F>],
     secret_key: &[UInt8<F>],
-    ciphertext: &[UInt8<F>],
     constraint_system: ConstraintSystemRef<F>,
 ) -> Result<Vec<UInt8<F>>> {
     let mut computed_ciphertext: Vec<UInt8<F>> = Vec::new();
@@ -308,6 +292,22 @@ pub fn encrypt_and_generate_constraints<F: Field>(
         computed_ciphertext.extend_from_slice(&ciphertext_chunk);
     }
 
+    use ark_r1cs_std::R1CSVar;
+
+    // we insert the computed ciphertext as a public input of the circuit
+    for byte in &computed_ciphertext {
+        let value = byte.value().map_err(|e| anyhow!("{}", e))?;
+        /*UInt8::<ConstraintF>::new_input(
+            constraint_system.clone(),
+            || Ok(value),
+        )?
+
+        */
+        //ciphertext_circuit.push();
+    }
+    /*
+    computed_ciphertext
+
     for (i, byte) in ciphertext.iter().enumerate() {
         byte.enforce_equal(
             computed_ciphertext
@@ -315,6 +315,7 @@ pub fn encrypt_and_generate_constraints<F: Field>(
                 .to_anyhow("Error getting ciphertext byte")?,
         )?;
     }
+    */
     helpers::debug_constraint_system_status(
         "After enforcing that the obtained ciphertext is equal to the given one",
         constraint_system,
