@@ -44,14 +44,14 @@ pub mod helpers;
 pub mod ops;
 
 use anyhow::{anyhow, Result};
-use ark_bls12_377::Fr;
+pub use ark_bls12_377::Fr;
 use ark_ff::Field;
 use ark_r1cs_std::{
     prelude::{AllocVar, EqGadget},
     uint8::UInt8,
 };
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-use helpers::traits::ToAnyhow;
+use helpers::{byte_to_field_array, traits::ToAnyhow};
 pub use simpleworks::marlin::generate_rand;
 pub use simpleworks::marlin::serialization::deserialize_proof;
 use simpleworks::{
@@ -151,17 +151,6 @@ pub fn verify_encryption(
         proof,
         &mut simpleworks::marlin::generate_rand(),
     )
-}
-
-fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
-    let mut ret = vec![];
-
-    for i in 0_i32..8_i32 {
-        let bit = (byte & (1 << i)) != 0;
-        ret.push(Fr::from(bit));
-    }
-
-    ret
 }
 
 pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, VerifyingKey)> {
