@@ -3,6 +3,7 @@ use anyhow::{ensure, Result};
 use criterion::Criterion;
 
 // TODO: Support non-multiple of 16 bytes messages.
+#[allow(dead_code)]
 fn primitive_encrypt(message: &[u8], key: &[u8]) -> Vec<u8> {
     let primitive_secret_key =
         aes::Aes128::new(digest::generic_array::GenericArray::from_slice(key));
