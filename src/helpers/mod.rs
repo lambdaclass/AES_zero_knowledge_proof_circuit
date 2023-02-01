@@ -4,7 +4,7 @@ use ark_ff::Field;
 use ark_r1cs_std::{prelude::Boolean, uint8::UInt8, R1CSVar, ToBitsGadget};
 use ark_relations::r1cs::ConstraintSystemRef;
 use log::debug;
-use simpleworks::gadgets::traits::BitwiseOperationGadget;
+use simpleworks::gadgets::{traits::BitwiseOperationGadget, ConstraintF};
 
 pub mod traits;
 
@@ -79,4 +79,15 @@ pub fn debug_constraint_system_status<F: Field>(
         matrix.a_num_non_zero + matrix.b_num_non_zero + matrix.c_num_non_zero
     );
     Ok(())
+}
+
+pub fn byte_to_field_array(byte: u8) -> Vec<ConstraintF> {
+    let mut ret = vec![];
+
+    for i in 0_i32..8_i32 {
+        let bit = (byte & (1 << i)) != 0;
+        ret.push(crate::Fr::from(bit));
+    }
+
+    ret
 }
