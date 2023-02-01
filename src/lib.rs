@@ -46,14 +46,10 @@ pub mod ops;
 use anyhow::{anyhow, Result};
 pub use ark_bls12_377::Fr;
 use ark_ff::Field;
-use ark_r1cs_std::{
-    prelude::{AllocVar, EqGadget},
-    uint8::UInt8,
-};
+use ark_r1cs_std::{prelude::AllocVar, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::{byte_to_field_array, traits::ToAnyhow};
-pub use simpleworks::marlin::generate_rand;
-pub use simpleworks::marlin::serialization::deserialize_proof;
+pub use simpleworks::marlin::{generate_rand, serialization::deserialize_proof};
 use simpleworks::{
     gadgets::ConstraintF,
     marlin::{MarlinProof, ProvingKey, VerifyingKey},
@@ -147,7 +143,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
 
     let default_message_input = vec![0_u8; plaintext_length];
     let default_secret_key_input = [0_u8; 16];
-    let default_ciphertext_input = vec![0_u8; plaintext_length];
 
     // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
     // `new_input_vec`, but for some reason that makes integration tests break??
@@ -164,15 +159,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
         Vec::with_capacity(default_secret_key_input.len());
     for byte in default_secret_key_input {
         secret_key_circuit.push(UInt8::<ConstraintF>::new_witness(
-            constraint_system.clone(),
-            || Ok(byte),
-        )?);
-    }
-
-    let mut ciphertext_circuit: Vec<UInt8<ConstraintF>> =
-        Vec::with_capacity(default_ciphertext_input.len());
-    for byte in default_ciphertext_input {
-        ciphertext_circuit.push(UInt8::<ConstraintF>::new_input(
             constraint_system.clone(),
             || Ok(byte),
         )?);
@@ -292,30 +278,11 @@ pub fn encrypt_and_generate_constraints<F: Field>(
         computed_ciphertext.extend_from_slice(&ciphertext_chunk);
     }
 
-    use ark_r1cs_std::R1CSVar;
-
-    // we insert the computed ciphertext as a public input of the circuit
+    // finally, we insert the computed ciphertext as a public input of the circuit
     for byte in &computed_ciphertext {
         let value = byte.value().map_err(|e| anyhow!("{}", e))?;
-        /*UInt8::<ConstraintF>::new_input(
-            constraint_system.clone(),
-            || Ok(value),
-        )?
-
-        */
-        //ciphertext_circuit.push();
+        UInt8::<F>::new_input(constraint_system.clone(), || Ok(value))?;
     }
-    /*
-    computed_ciphertext
-
-    for (i, byte) in ciphertext.iter().enumerate() {
-        byte.enforce_equal(
-            computed_ciphertext
-                .get(i)
-                .to_anyhow("Error getting ciphertext byte")?,
-        )?;
-    }
-    */
     helpers::debug_constraint_system_status(
         "After enforcing that the obtained ciphertext is equal to the given one",
         constraint_system,
