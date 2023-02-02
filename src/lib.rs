@@ -103,7 +103,7 @@ pub fn encrypt(
     let cs_clone = (*constraint_system
         .borrow()
         .ok_or("Error borrowing")
-        .map_err(|e| anyhow!("{}", e))?)
+        .map_err(|e| anyhow!(e.to_owned()))?)
     .clone();
     let cs_ref_clone = ConstraintSystemRef::CS(Rc::new(RefCell::new(cs_clone)));
 
@@ -280,7 +280,7 @@ pub fn encrypt_and_generate_constraints<F: Field>(
 
     // finally, we insert the computed ciphertext as a public input of the circuit
     for byte in &computed_ciphertext {
-        let value = byte.value().map_err(|e| anyhow!("{}", e))?;
+        let value = byte.value().map_err(|e| anyhow!(e.to_owned()))?;
         UInt8::<F>::new_input(constraint_system.clone(), || Ok(value))?;
     }
     helpers::debug_constraint_system_status(
