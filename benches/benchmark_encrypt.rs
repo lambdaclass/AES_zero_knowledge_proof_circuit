@@ -3,6 +3,7 @@ use anyhow::{ensure, Result};
 use criterion::Criterion;
 
 // TODO: Support non-multiple of 16 bytes messages.
+#[allow(dead_code)]
 fn primitive_encrypt(message: &[u8], key: &[u8]) -> Vec<u8> {
     let primitive_secret_key =
         aes::Aes128::new(digest::generic_array::GenericArray::from_slice(key));
@@ -37,13 +38,12 @@ pub fn encrypt_message_with_bytes(c: &mut Criterion, amount_of_bytes: usize) -> 
     let message = sample_message(amount_of_bytes);
     let (proving_key, _verifying_key) = zk_aes::synthesize_keys(message.len()).unwrap();
     let key: [u8; 16] = rand::random();
-    let ciphertext = primitive_encrypt(&message, &key);
 
     let mut group = c.benchmark_group("Encryption");
     group.sample_size(10);
     group.bench_function(format!("{amount_of_bytes}_message_encryption"), |b| {
         b.iter(|| {
-            zk_aes::encrypt(&message, &key, &ciphertext, proving_key.clone()).unwrap();
+            zk_aes::encrypt(&message, &key, proving_key.clone()).unwrap();
         })
     });
     group.finish();

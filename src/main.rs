@@ -13,9 +13,9 @@ fn main() -> Result<()> {
     let primitive_secret_key = Aes128::new(GenericArray::from_slice(&secret_key));
     let (proving_key, verifying_key) = synthesize_keys(message.len())?;
 
-    let primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);
-    let proof = encrypt(&message, &secret_key, &primitive_ciphertext, proving_key)?;
+    let proof = encrypt(&message, &secret_key, proving_key)?;
 
+    let primitive_ciphertext = primitive_encrypt(&message, &primitive_secret_key);
     assert!(verify_encryption(
         verifying_key,
         &proof,

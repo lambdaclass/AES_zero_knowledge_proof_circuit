@@ -46,14 +46,10 @@ pub mod ops;
 use anyhow::{anyhow, Result};
 pub use ark_bls12_377::Fr;
 use ark_ff::Field;
-use ark_r1cs_std::{
-    prelude::{AllocVar, EqGadget},
-    uint8::UInt8,
-};
+use ark_r1cs_std::{eq::EqGadget, prelude::AllocVar, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::{byte_to_field_array, traits::ToAnyhow};
-pub use simpleworks::marlin::generate_rand;
-pub use simpleworks::marlin::serialization::deserialize_proof;
+pub use simpleworks::marlin::{generate_rand, serialization::deserialize_proof};
 use simpleworks::{
     gadgets::ConstraintF,
     marlin::{MarlinProof, ProvingKey, VerifyingKey},
@@ -64,7 +60,6 @@ use std::rc::Rc;
 pub fn encrypt(
     message: &[u8],
     secret_key: &[u8; 16],
-    ciphertext: &[u8],
     proving_key: ProvingKey,
 ) -> Result<MarlinProof> {
     let rng = &mut simpleworks::marlin::generate_rand();
@@ -96,22 +91,9 @@ pub fn encrypt(
         constraint_system.clone(),
     )?;
 
-    let mut ciphertext_circuit: Vec<UInt8<ConstraintF>> = Vec::with_capacity(ciphertext.len());
-    for byte in ciphertext {
-        ciphertext_circuit.push(UInt8::<ConstraintF>::new_input(
-            constraint_system.clone(),
-            || Ok(byte),
-        )?);
-    }
-    helpers::debug_constraint_system_status(
-        "After allocating the ciphertext",
-        constraint_system.clone(),
-    )?;
-
     encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
-        &ciphertext_circuit,
         constraint_system.clone(),
     )?;
 
@@ -121,7 +103,7 @@ pub fn encrypt(
     let cs_clone = (*constraint_system
         .borrow()
         .ok_or("Error borrowing")
-        .map_err(|e| anyhow!("{}", e))?)
+        .map_err(|e| anyhow!(e.to_owned()))?)
     .clone();
     let cs_ref_clone = ConstraintSystemRef::CS(Rc::new(RefCell::new(cs_clone)));
 
@@ -161,7 +143,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
 
     let default_message_input = vec![0_u8; plaintext_length];
     let default_secret_key_input = [0_u8; 16];
-    let default_ciphertext_input = vec![0_u8; plaintext_length];
 
     // TODO: These three blocks of code could be replaced with calls to `new_witness_vec` and
     // `new_input_vec`, but for some reason that makes integration tests break??
@@ -183,19 +164,9 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
         )?);
     }
 
-    let mut ciphertext_circuit: Vec<UInt8<ConstraintF>> =
-        Vec::with_capacity(default_ciphertext_input.len());
-    for byte in default_ciphertext_input {
-        ciphertext_circuit.push(UInt8::<ConstraintF>::new_input(
-            constraint_system.clone(),
-            || Ok(byte),
-        )?);
-    }
-
     let _ciphertext = encrypt_and_generate_constraints(
         &message_circuit,
         &secret_key_circuit,
-        &ciphertext_circuit,
         constraint_system.clone(),
     );
 
@@ -205,7 +176,6 @@ pub fn synthesize_keys(plaintext_length: usize) -> Result<(ProvingKey, Verifying
 pub fn encrypt_and_generate_constraints<F: Field>(
     message: &[UInt8<F>],
     secret_key: &[UInt8<F>],
-    ciphertext: &[UInt8<F>],
     constraint_system: ConstraintSystemRef<F>,
 ) -> Result<Vec<UInt8<F>>> {
     let mut computed_ciphertext: Vec<UInt8<F>> = Vec::new();
@@ -308,12 +278,11 @@ pub fn encrypt_and_generate_constraints<F: Field>(
         computed_ciphertext.extend_from_slice(&ciphertext_chunk);
     }
 
-    for (i, byte) in ciphertext.iter().enumerate() {
-        byte.enforce_equal(
-            computed_ciphertext
-                .get(i)
-                .to_anyhow("Error getting ciphertext byte")?,
-        )?;
+    // finally, we insert the computed ciphertext as a public input of the circuit
+    for byte in &computed_ciphertext {
+        let value = byte.value().map_err(|e| anyhow!(e.to_owned()))?;
+        let public_input = UInt8::<F>::new_input(constraint_system.clone(), || Ok(value))?;
+        public_input.enforce_equal(byte)?;
     }
     helpers::debug_constraint_system_status(
         "After enforcing that the obtained ciphertext is equal to the given one",
