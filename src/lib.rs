@@ -46,7 +46,7 @@ pub mod ops;
 use anyhow::{anyhow, Result};
 pub use ark_bls12_377::Fr;
 use ark_ff::Field;
-use ark_r1cs_std::{prelude::AllocVar, uint8::UInt8, R1CSVar};
+use ark_r1cs_std::{eq::EqGadget, prelude::AllocVar, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use helpers::{byte_to_field_array, traits::ToAnyhow};
 pub use simpleworks::marlin::{generate_rand, serialization::deserialize_proof};
@@ -281,7 +281,8 @@ pub fn encrypt_and_generate_constraints<F: Field>(
     // finally, we insert the computed ciphertext as a public input of the circuit
     for byte in &computed_ciphertext {
         let value = byte.value().map_err(|e| anyhow!(e.to_owned()))?;
-        UInt8::<F>::new_input(constraint_system.clone(), || Ok(value))?;
+        let public_input = UInt8::<F>::new_input(constraint_system.clone(), || Ok(value))?;
+        public_input.enforce_equal(byte)?;
     }
     helpers::debug_constraint_system_status(
         "After enforcing that the obtained ciphertext is equal to the given one",
