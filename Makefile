@@ -14,3 +14,6 @@ install_insta:
 
 insta_demo:
 	cargo insta test --review -- test_aes_encryption_step_by_step
+
+clean_snapshots:
+	rm -rf tests/snapshots
