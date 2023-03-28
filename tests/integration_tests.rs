@@ -20,17 +20,29 @@ mod tests {
         round: usize,
     ) {
         let after_substituting_bytes = substitute_bytes(&expected_start_of_round, cs).unwrap();
+        insta::assert_snapshot!(
+            format!("{after_substituting_bytes:?}"),
+            format!("{expected_after_substituting_bytes:?}")
+        );
         assert_eq!(
             after_substituting_bytes, expected_after_substituting_bytes,
             "Substitution is incorrect in round {round}"
         );
         let after_shift_rows = shift_rows(&after_substituting_bytes, cs).unwrap();
+        insta::assert_snapshot!(
+            format!("{after_shift_rows:?}"),
+            format!("{expected_after_shift_rows:?}")
+        );
         assert_eq!(
             after_shift_rows, expected_after_shift_rows,
             "Shift rows is incorrect in round {round}"
         );
         let after_mix_columns = if round != 10 {
             let after_mix_columns = mix_columns(&after_shift_rows).unwrap();
+            insta::assert_snapshot!(
+                format!("{after_mix_columns:?}"),
+                format!("{expected_after_mix_columns:?}")
+            );
             assert_eq!(
                 after_mix_columns, expected_after_mix_columns,
                 "Mix columns is incorrect in round {round}",
@@ -40,6 +52,10 @@ mod tests {
             after_shift_rows
         };
         let start_of_next_round = add_round_key(&after_mix_columns, round_key);
+        insta::assert_snapshot!(
+            format!("{start_of_next_round:?}"),
+            format!("{expected_start_of_next_round:?}")
+        );
         assert_eq!(
             start_of_next_round, expected_start_of_next_round,
             "Start of next round is incorrect in round {round}"
