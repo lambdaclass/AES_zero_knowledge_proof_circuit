@@ -4,7 +4,7 @@ clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 test:
-	cargo test
+	cargo insta test
 
 benchmarks:
 	cargo criterion --bench benchmark
