@@ -1,0 +1,6 @@
+---
+source: tests/integration_tests.rs
+assertion_line: 42
+expression: "format!(\"{expected_after_mix_columns:?}\")"
+---
+[0, 81, 47, 209, 177, 200, 137, 255, 84, 118, 109, 205, 250, 27, 153, 234]

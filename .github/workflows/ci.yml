@@ -26,6 +26,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
             toolchain: stable
+      - run: make install_insta
       - run: make test
   # coverage:
   #   runs-on: ubuntu-20.04

@@ -1,0 +1,6 @@
+---
+source: tests/integration_tests.rs
+assertion_line: 55
+expression: "format!(\"{expected_start_of_next_round:?}\")"
+---
+[38, 14, 46, 23, 61, 65, 183, 125, 232, 100, 114, 169, 253, 210, 139, 37]

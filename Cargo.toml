@@ -33,6 +33,8 @@ rand = "0.8.5"
 log = "0.4"
 env_logger = "0.10.0"
 
+insta = "1.29"
+
 [profile.bench]
 opt-level = 3
 debug = false

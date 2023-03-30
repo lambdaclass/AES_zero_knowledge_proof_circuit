@@ -1,0 +1,6 @@
+---
+source: tests/integration_tests.rs
+assertion_line: 32
+expression: "format!(\"{expected_after_shift_rows:?}\")"
+---
+[233, 49, 125, 181, 203, 50, 44, 114, 61, 46, 137, 95, 175, 9, 7, 148]
