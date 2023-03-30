@@ -1,0 +1,6 @@
+---
+source: tests/integration_tests.rs
+assertion_line: 23
+expression: "format!(\"{expected_after_substituting_bytes:?}\")"
+---
+[82, 80, 47, 40, 133, 164, 94, 215, 227, 17, 200, 7, 246, 207, 106, 148]
